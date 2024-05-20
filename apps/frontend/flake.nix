@@ -28,8 +28,28 @@
       perSystem = { config, self', inputs', pkgs, system, ... }: {
         # TODO elm-live src/Main.elm --hot --start-page index.html --pushstate -- --output=elm.js
         devenv.shells.default = {
-          packages = [pkgs.elmPackages.elm-live pkgs.nodePackages.http-server];
+          packages = [
+            pkgs.elmPackages.elm-live
+            pkgs.nodePackages.http-server
+          ];
           languages.elm.enable = true;
+
+          scripts.build-frontend.exec = ''
+            mkdir dist
+            elm make src/Main.elm --output dist/elm.js --optimize
+            cp index.html dist
+            cp -r assets dist
+            cp *.js dist
+            cp manifest.json dist
+          '';
+
+          scripts.dev-frontend.exec = ''
+            ${pkgs.pkgs.elmPackages.elm-live}/bin/elm-live src/Main.elm -s index.html -u true -- --output elm.js
+          '';
+
+          processes = {
+            frontend.exec = "dev-frontend";
+          };
         };
 
       };
