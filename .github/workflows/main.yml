@@ -11,5 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: aldoborrero/use-nix-action@v4
+    - uses: cachix/install-nix-action@v17
+    - run: nix develop --impure --accept-flake-config
     - run: build-frontend
