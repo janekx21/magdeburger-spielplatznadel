@@ -21,7 +21,12 @@ jobs:
         flakes-from-devshell: true
         script: |
           # Runs build from a local flake.nix with a `devShell`
-          build-frontend
+          mkdir dist
+          elm make src/Main.elm --output dist/elm.js --optimize
+          cp index.html dist
+          cp -r assets dist
+          cp *.js dist
+          cp manifest.json dist
     # - run: |
     #    nix develop --impure --accept-flake-config
     #    build-frontend
