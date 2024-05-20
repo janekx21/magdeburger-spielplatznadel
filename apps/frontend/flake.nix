@@ -31,17 +31,25 @@
           packages = [
             pkgs.elmPackages.elm-live
             pkgs.nodePackages.http-server
+            (pkgs.writeScriptBin "build-frontend" ''
+              mkdir dist
+              elm make src/Main.elm --output dist/elm.js --optimize
+              cp index.html dist
+              cp -r assets dist
+              cp *.js dist
+              cp manifest.json dist
+            '')
           ];
           languages.elm.enable = true;
 
-          scripts.build-frontend.exec = ''
-            mkdir dist
-            elm make src/Main.elm --output dist/elm.js --optimize
-            cp index.html dist
-            cp -r assets dist
-            cp *.js dist
-            cp manifest.json dist
-          '';
+          # scripts.build-frontend.exec = ''
+          #   mkdir dist
+          #   elm make src/Main.elm --output dist/elm.js --optimize
+          #   cp index.html dist
+          #   cp -r assets dist
+          #   cp *.js dist
+          #   cp manifest.json dist
+          # '';
 
           scripts.dev-frontend.exec = ''
             ${pkgs.pkgs.elmPackages.elm-live}/bin/elm-live src/Main.elm -s index.html -u true -- --output elm.js
