@@ -11,6 +11,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: cachix/install-nix-action@v17
-    - run: nix develop --impure
-    - run: buid-frontend
+    - uses: aldoborrero/use-nix-action@v4
+    - run: build-frontend
