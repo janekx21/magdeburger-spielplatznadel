@@ -1,5 +1,5 @@
-apps/frontend/.devenv
-apps/frontend/.direnv
-apps/frontend/elm-stuff
-apps/frontend/elm.js
-apps/frontend/dist
+**/.devenv
+**/elm-stuff
+**/elm.js
+**/dist
+**/.direnv

@@ -27,11 +27,13 @@
 
       perSystem = { config, self', inputs', pkgs, system, ... }: {
         # TODO elm-live src/Main.elm --hot --start-page index.html --pushstate -- --output=elm.js
+        packages.${system}.default = pkgs.runCommand "" {} '''';
         devenv.shells.default = {
           packages = [
             pkgs.elmPackages.elm-live
             pkgs.nodePackages.http-server
             (pkgs.writeScriptBin "build-frontend" ''
+              cd apps/frontend
               mkdir dist
               elm make src/Main.elm --output dist/elm.js --optimize
               cp index.html dist
@@ -52,7 +54,7 @@
           # '';
 
           scripts.dev-frontend.exec = ''
-            ${pkgs.pkgs.elmPackages.elm-live}/bin/elm-live src/Main.elm -s index.html -u true -- --output elm.js
+            $cd apps/frontend; {pkgs.pkgs.elmPackages.elm-live}/bin/elm-live src/Main.elm -s index.html -u true -- --output elm.js
           '';
 
           processes = {
