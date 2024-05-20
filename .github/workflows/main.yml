@@ -17,5 +17,5 @@ jobs:
     - name: Deploy to Github Pages
       uses: actions/upload-pages-artifact@v3.0.1
       with:
-        path: app/frontend/dist
+        path: apps/frontend/dist
               
