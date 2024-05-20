@@ -147,8 +147,11 @@ view model =
             AwardsRoute ->
                 viewAwardsRoute model
 
-            _ ->
-                layout [] <| text "TODO implement route"
+            PlaygroundRoute guid ->
+                viewPlaygroundRoute model
+
+        -- _ ->
+        --     layout [] <| text "TODO implement route"
         ]
     }
 
@@ -167,9 +170,9 @@ viewMainRoute model =
                 [ playgroundItemPlaceholder 3
                 , playgroundItemPlaceholder 4.2
                 , playgroundItemPlaceholder 4.5
-                , playgroundItemPlaceholder 4.5
-                , playgroundItemPlaceholder 4.5
-                , playgroundItemPlaceholder 4.5
+                , playgroundItemPlaceholder 7.2
+                , playgroundItemPlaceholder 7.9
+                , playgroundItemPlaceholder 12
                 ]
             ]
 
@@ -194,6 +197,31 @@ viewAwardsRoute model =
             ]
 
 
+viewPlaygroundRoute model =
+    layout [ width fill, height fill ] <|
+        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+            [ el [ Font.color grayDark, centerX ] <| iconSized Icons.toys 64
+            , column [ spacing 16, width fill ]
+                [ placeholderLarger
+                , linePlaceholder 8
+                , linePlaceholder 3
+                , linePlaceholder 7
+                , linePlaceholder 2
+                , linePlaceholder 4
+                , linePlaceholder 20
+                ]
+            , row [ scrollbarX, height (px 140), spacing 16, width fill, style "flex" "none" ]
+                [ placeholderImage
+                , placeholderImage
+                , placeholderImage
+                , placeholderImage
+                , placeholderImage
+                , placeholderImage
+                ]
+            , mapCollapsed
+            ]
+
+
 linePlaceholder space =
     row [ width fill ]
         [ placeholder
@@ -207,6 +235,10 @@ placeholder =
 
 placeholderLarger =
     el [ Border.rounded 16, Background.color grayDark, width fill, height (px 48) ] <| none
+
+
+placeholderImage =
+    el [ Border.rounded 16, Background.color grayLight, width (px 120), height (px 120) ] <| el [ centerX, centerY, Font.color grayDark ] <| icon Icons.image
 
 
 grayLight =
@@ -247,8 +279,21 @@ map =
             Html.node "my-custom-element" [] []
 
 
-playgroundItemPlaceholder km =
+mapCollapsed =
     el
+        [ width fill
+        , aspect 7 4
+        , flexBasisAuto
+        , Border.rounded 16
+        , style "overflow" "hidden"
+        ]
+    <|
+        html <|
+            Html.node "my-custom-element" [] []
+
+
+playgroundItemPlaceholder km =
+    link
         [ Border.rounded 16
         , Background.color grayLight
         , width fill
@@ -256,12 +301,15 @@ playgroundItemPlaceholder km =
         , paddingXY 24 0
         ]
     <|
-        row [ centerY, width fill, Font.color grayDark ]
-            [ icon Icons.local_play
-            , el [ alignRight, itim, Font.size 24 ] <|
-                text <|
-                    (String.fromFloat km ++ "km")
-            ]
+        { label =
+            row [ centerY, width fill, Font.color grayDark ]
+                [ icon Icons.local_play
+                , el [ alignRight, itim, Font.size 24 ] <|
+                    text <|
+                        (String.fromFloat km ++ "km")
+                ]
+        , url = "/playground/placeholder"
+        }
 
 
 awardPlaceholder got =
@@ -299,7 +347,11 @@ buttonAwards =
 
 
 square =
-    style "aspect-ratio" "1/1"
+    aspect 1 1
+
+
+aspect a b =
+    style "aspect-ratio" (String.fromInt a ++ "/" ++ String.fromInt b)
 
 
 flexBasisAuto =
