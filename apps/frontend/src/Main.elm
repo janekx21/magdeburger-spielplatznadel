@@ -9,13 +9,13 @@ import Element.Font as Font
 import Element.Input as Input
 import Html
 import Html.Attributes
-import Html.Events exposing (onClick, onInput)
 import Http
 import Json.Decode as JD
 import Json.Encode as JE
 import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
 import Url
+import Url.Parser as UP exposing ((</>), Parser, int, oneOf, s, string)
 
 
 
@@ -40,7 +40,7 @@ main =
 
 type alias Model =
     { key : Nav.Key
-    , url : Url.Url
+    , route : Route
     , capture : String
     , message : String
     , online : Bool
@@ -49,7 +49,26 @@ type alias Model =
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init _ url key =
-    ( Model key url "" "" True, Cmd.none )
+    ( Model key (parseUrl url) "" "" True, Cmd.none )
+
+
+parseUrl url =
+    UP.parse routeParser url |> Maybe.withDefault MainRoute
+
+
+type Route
+    = MainRoute
+    | PlaygroundRoute String
+    | AwardsRoute
+
+
+routeParser : Parser (Route -> a) a
+routeParser =
+    oneOf
+        [ UP.map MainRoute UP.top
+        , UP.map PlaygroundRoute (UP.s "playground" </> UP.string)
+        , UP.map AwardsRoute (UP.s "award")
+        ]
 
 
 
@@ -77,7 +96,7 @@ update msg model =
                     ( model, Nav.load href )
 
         UrlChanged url ->
-            ( { model | url = url }
+            ( { model | route = parseUrl url }
             , Cmd.none
             )
 
@@ -121,47 +140,58 @@ view model =
     { title = "DWYL App"
     , body =
         [ Html.node "link" [ Html.Attributes.rel "stylesheet", Html.Attributes.href "https://fonts.googleapis.com/css?family=Itim" ] []
-        , layout [ width fill, height fill, inFront <| el [ alignBottom, alignRight, padding 32 ] <| buttonAwards ] <|
-            column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
-                [ column [ spacing 16, width fill ]
-                    [ placeholderLarger
-                    , linePlaceholder 8
-                    , linePlaceholder 2
-                    ]
-                , map
-                , column
-                    [ spacing 16, width fill ]
-                    [ playgroundItemPlaceholder 3
-                    , playgroundItemPlaceholder 4.2
-                    , playgroundItemPlaceholder 4.5
-                    , playgroundItemPlaceholder 4.5
-                    , playgroundItemPlaceholder 4.5
-                    , playgroundItemPlaceholder 4.5
-                    ]
-                ]
+        , case model.route of
+            MainRoute ->
+                viewMainRoute model
 
-        -- main_ [ class "pa2" ]
-        --     [ text model.message
-        --     , onlineView model.online
-        --     , h1 [ class "tc " ] [ text "Capture" ]
-        --     , div [ class "h-75" ]
-        --         [ textarea
-        --             [ onInput Capture
-        --             , value model.capture
-        --             , class "db mb2 center w-100 w-60-l h-100 resize-none"
-        --             , placeholder "write down everything that is on your mind"
-        --             ]
-        --             []
-        --         , text "hello world"
-        --         , div [ class "tc" ]
-        --             [ button [ class "bg-near-white bn", onClick CreateCapture ]
-        --                 [ img [ class "pointer tc center", src "/assets/images/submit.png", alt "capture" ] []
-        --                 ]
-        --             ]
-        --         ]
-        --     ]
+            AwardsRoute ->
+                viewAwardsRoute model
+
+            _ ->
+                layout [] <| text "TODO implement route"
         ]
     }
+
+
+viewMainRoute model =
+    layout [ width fill, height fill, inFront <| el [ alignBottom, alignRight, padding 32 ] <| buttonAwards ] <|
+        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+            [ column [ spacing 16, width fill ]
+                [ placeholderLarger
+                , linePlaceholder 8
+                , linePlaceholder 2
+                ]
+            , map
+            , column
+                [ spacing 16, width fill ]
+                [ playgroundItemPlaceholder 3
+                , playgroundItemPlaceholder 4.2
+                , playgroundItemPlaceholder 4.5
+                , playgroundItemPlaceholder 4.5
+                , playgroundItemPlaceholder 4.5
+                , playgroundItemPlaceholder 4.5
+                ]
+            ]
+
+
+viewAwardsRoute model =
+    layout [ width fill, height fill ] <|
+        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+            [ column [ spacing 16, width fill ]
+                [ placeholderLarger
+                , linePlaceholder 8
+                ]
+            , Element.row
+                [ width fill, style "flex-wrap" "wrap", style "gap" "32px", justifyCenter ]
+                [ awardPlaceholder True
+                , awardPlaceholder False
+                , awardPlaceholder True
+                , awardPlaceholder True
+                , awardPlaceholder False
+                , awardPlaceholder True
+                , awardPlaceholder True
+                ]
+            ]
 
 
 linePlaceholder space =
@@ -210,7 +240,7 @@ map =
         , square
         , flexBasisAuto
         , Border.rounded 16
-        , htmlAttribute <| Html.Attributes.style "overflow" "hidden"
+        , style "overflow" "hidden"
         ]
     <|
         html <|
@@ -227,41 +257,75 @@ playgroundItemPlaceholder km =
         ]
     <|
         row [ centerY, width fill, Font.color grayDark ]
-            [ materialIcon Icons.local_play
+            [ icon Icons.local_play
             , el [ alignRight, itim, Font.size 24 ] <|
                 text <|
                     (String.fromFloat km ++ "km")
             ]
 
 
-buttonAwards =
+awardPlaceholder got =
     el
+        ([ Border.rounded 16
+         , Background.color grayLight
+         , width (px 130)
+         , height (px 130)
+         ]
+            ++ (if got then
+                    []
+
+                else
+                    [ alpha 0.4 ]
+               )
+        )
+    <|
+        el [ centerX, centerY, Font.color grayDark ] <|
+            iconSized Icons.stars 64
+
+
+buttonAwards =
+    link
         [ Background.color grayDark
         , Border.rounded 999
-        , padding 8
-        , scale 2
+        , padding 16
         , Font.color white
         , Border.shadow { offset = ( 0, 4 ), size = 0, blur = 18, color = rgba 0 0 0 0.25 }
         ]
     <|
-        materialIcon Icons.approval
+        { label =
+            iconSized Icons.approval 48
+        , url = "/award"
+        }
 
 
 square =
-    htmlAttribute <| Html.Attributes.style "aspect-ratio" "1/1"
+    style "aspect-ratio" "1/1"
 
 
 flexBasisAuto =
-    htmlAttribute <| Html.Attributes.style "flex-basis" "auto"
+    style "flex-basis" "auto"
+
+
+justifyCenter =
+    style "justify-content" "center"
 
 
 itim =
     Font.family [ Font.typeface "Itim" ]
 
 
-materialIcon : Icon msg -> Element msg
-materialIcon icon =
-    el [] <| html <| icon 24 Material.Icons.Types.Inherit
+icon : Icon msg -> Element msg
+icon icon_ =
+    el [] <| html <| icon_ 24 Material.Icons.Types.Inherit
+
+
+iconSized : Icon msg -> Int -> Element msg
+iconSized icon_ size =
+    el [] <| html <| icon_ size Material.Icons.Types.Inherit
+
+
+style key value =
+    htmlAttribute <| Html.Attributes.style key value
 
 
 
