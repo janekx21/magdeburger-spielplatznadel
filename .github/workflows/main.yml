@@ -8,7 +8,6 @@ defaults:
     working-directory: apps/frontend
 jobs:
   deploy-to-staging:
-    working-directo
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
