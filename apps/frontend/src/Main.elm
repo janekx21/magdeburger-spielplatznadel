@@ -128,7 +128,7 @@ view model =
                     , linePlaceholder 8
                     , linePlaceholder 2
                     ]
-                , mapPlaceholder
+                , map
                 , column
                     [ spacing 16, width fill ]
                     [ playgroundItemPlaceholder 3
@@ -204,6 +204,19 @@ mapPlaceholder =
             text "map"
 
 
+map =
+    el
+        [ width fill
+        , square
+        , flexBasisAuto
+        , Border.rounded 16
+        , htmlAttribute <| Html.Attributes.style "overflow" "hidden"
+        ]
+    <|
+        html <|
+            Html.node "my-custom-element" [] []
+
+
 playgroundItemPlaceholder km =
     el
         [ Border.rounded 16
@@ -222,7 +235,16 @@ playgroundItemPlaceholder km =
 
 
 buttonAwards =
-    el [ Background.color grayDark, Border.rounded 999, padding 16, scale 1.5, Font.color white, Border.shadow { offset = ( 0, 4 ), size = 0, blur = 18, color = rgba 0 0 0 0.25 } ] <| materialIcon Icons.approval
+    el
+        [ Background.color grayDark
+        , Border.rounded 999
+        , padding 8
+        , scale 2
+        , Font.color white
+        , Border.shadow { offset = ( 0, 4 ), size = 0, blur = 18, color = rgba 0 0 0 0.25 }
+        ]
+    <|
+        materialIcon Icons.approval
 
 
 square =

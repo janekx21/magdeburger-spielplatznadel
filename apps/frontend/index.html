@@ -1,50 +1,116 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <title>Dwyl App</title>
-        <link rel="stylesheet" href="./assets/css/tachyons.css">
-        <link rel="stylesheet" href="./assets/css/app.css">
-        <link rel="manifest" href="./manifest.json">
-        <script src="./elm.js"></script>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="Description" content="DWYL application, built with Elm!">
-        <link rel="apple-touch-icon" href="/assets/images/dwyl180.png">
-        <meta name="theme-color" content="#4BC0A9"/>
-        <link rel="canonical" href="https://dwyl-elm-pwa.herokuapp.com"/>
-    </head>
 
-    <body class="bg-near-white helvetica">
-        <noscript>
-            <span>This website is using Elm, so it needs js enabled</span>
-        </noscript>        
-        <script src="//cdn.jsdelivr.net/npm/pouchdb@7.1.1/dist/pouchdb.min.js"></script>
-        <script src="./pouchdb.js"></script>
-       <script>
-            var app = Elm.Main.init();
-            
-            if('serviceWorker' in navigator) {
-                navigator.serviceWorker
-                        .register('/service_worker.js')
-                        .then(function() { console.log("Service Worker Registered"); });
-            }
+<head>
+  <title>Dwyl App</title>
+  <link rel="stylesheet" href="./assets/css/tachyons.css">
+  <link rel="stylesheet" href="./assets/css/app.css">
+  <link rel="manifest" href="./manifest.json">
+  <script src="./elm.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="Description" content="DWYL application, built with Elm!">
+  <link rel="apple-touch-icon" href="/assets/images/dwyl180.png">
+  <meta name="theme-color" content="#4BC0A9" />
+  <link rel="canonical" href="https://dwyl-elm-pwa.herokuapp.com" />
 
-            window.addEventListener('online', function(e) {
-                // sync data with server
-                app.ports.online.send(true);
-            }, false);
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+  <style>
+    my-custom-element {
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body class="bg-near-white helvetica">
+  <noscript>
+    <span>This website is using Elm, so it needs js enabled</span>
+
+  </noscript>
+  <script src="//cdn.jsdelivr.net/npm/pouchdb@7.1.1/dist/pouchdb.min.js"></script>
+  <script src="./pouchdb.js"></script>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <div id="map"></div>
 
 
-            window.addEventListener('offline', function(e) {
-                // save data locally
-                app.ports.online.send(false);
-            }, false);
+  <script>
+    var app = Elm.Main.init();
 
-            app.ports.pouchDB.subscribe(function(capture) {
-                console.log("capture offline", capture)
-                saveCapture(capture)
-            });
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/service_worker.js')
+        .then(function () {console.log("Service Worker Registered");});
+    }
 
-        </script>
+    window.addEventListener('online', function (e) {
+      // sync data with server
+      app.ports.online.send(true);
+    }, false);
 
-    </body>
+
+    window.addEventListener('offline', function (e) {
+      // save data locally
+      app.ports.online.send(false);
+    }, false);
+
+    app.ports.pouchDB.subscribe(function (capture) {
+      console.log("capture offline", capture)
+      saveCapture(capture)
+    });
+
+
+    // Create a class for the element
+    class MyCustomElement extends HTMLElement {
+      static observedAttributes = ["color", "size"];
+
+      constructor() {
+        // Always call super first in constructor
+        super();
+      }
+
+      connectedCallback() {
+        console.log("Custom element added to page.");
+
+        //const container = document.createElement("div");
+
+        var map = L.map(this).setView([51.505, -0.09], 13);
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        L.marker([51.5, -0.09]).addTo(map)
+          .bindPopup('A pretty CSS popup.<br> Easily customizable.')
+          .openPopup();
+
+        console.log(map)
+        //console.log(container)
+        //this.appendChild(container)
+      }
+
+      disconnectedCallback() {
+        console.log("Custom element removed from page.");
+      }
+
+      adoptedCallback() {
+        console.log("Custom element moved to new page.");
+      }
+
+      attributeChangedCallback(name, oldValue, newValue) {
+        console.log(`Attribute ${name} has changed.`);
+      }
+    }
+
+    customElements.define("my-custom-element", MyCustomElement);
+
+
+
+
+  </script>
+</body>
+
 </html>
