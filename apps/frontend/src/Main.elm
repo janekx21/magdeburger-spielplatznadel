@@ -7,10 +7,14 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Html
+import Html.Attributes
 import Html.Events exposing (onClick, onInput)
 import Http
 import Json.Decode as JD
 import Json.Encode as JE
+import Material.Icons as Icons
+import Material.Icons.Types exposing (Icon)
 import Url
 
 
@@ -116,10 +120,24 @@ view : Model -> Browser.Document Msg
 view model =
     { title = "DWYL App"
     , body =
-        [ layout [ width fill ] <|
-            column [ width fill, spacing 16, padding 22 ]
-                [ placeholder
-                , placeholder
+        [ Html.node "link" [ Html.Attributes.rel "stylesheet", Html.Attributes.href "https://fonts.googleapis.com/css?family=Itim" ] []
+        , layout [ width fill, height fill, inFront <| el [ alignBottom, alignRight, padding 32 ] <| buttonAwards ] <|
+            column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+                [ column [ spacing 16, width fill ]
+                    [ placeholderLarger
+                    , linePlaceholder 8
+                    , linePlaceholder 2
+                    ]
+                , mapPlaceholder
+                , column
+                    [ spacing 16, width fill ]
+                    [ playgroundItemPlaceholder 3
+                    , playgroundItemPlaceholder 4.2
+                    , playgroundItemPlaceholder 4.5
+                    , playgroundItemPlaceholder 4.5
+                    , playgroundItemPlaceholder 4.5
+                    , playgroundItemPlaceholder 4.5
+                    ]
                 ]
 
         -- main_ [ class "pa2" ]
@@ -146,8 +164,19 @@ view model =
     }
 
 
+linePlaceholder space =
+    row [ width fill ]
+        [ placeholder
+        , el [ width (px (space * 8)) ] <| none
+        ]
+
+
 placeholder =
     el [ Border.rounded 16, Background.color grayLight, width fill, height (px 36) ] <| none
+
+
+placeholderLarger =
+    el [ Border.rounded 16, Background.color grayDark, width fill, height (px 48) ] <| none
 
 
 grayLight =
@@ -155,7 +184,62 @@ grayLight =
 
 
 grayDark =
-    rgb255 248 162 171
+    rgb255 148 162 171
+
+
+white =
+    rgb 1 1 1
+
+
+mapPlaceholder =
+    el
+        [ Border.rounded 16
+        , Background.color grayLight
+        , width fill
+        , square
+        , flexBasisAuto
+        ]
+    <|
+        el [ centerX, centerY, itim, Font.color grayDark ] <|
+            text "map"
+
+
+playgroundItemPlaceholder km =
+    el
+        [ Border.rounded 16
+        , Background.color grayLight
+        , width fill
+        , height (px 64)
+        , paddingXY 24 0
+        ]
+    <|
+        row [ centerY, width fill, Font.color grayDark ]
+            [ materialIcon Icons.local_play
+            , el [ alignRight, itim, Font.size 24 ] <|
+                text <|
+                    (String.fromFloat km ++ "km")
+            ]
+
+
+buttonAwards =
+    el [ Background.color grayDark, Border.rounded 999, padding 16, scale 1.5, Font.color white, Border.shadow { offset = ( 0, 4 ), size = 0, blur = 18, color = rgba 0 0 0 0.25 } ] <| materialIcon Icons.approval
+
+
+square =
+    htmlAttribute <| Html.Attributes.style "aspect-ratio" "1/1"
+
+
+flexBasisAuto =
+    htmlAttribute <| Html.Attributes.style "flex-basis" "auto"
+
+
+itim =
+    Font.family [ Font.typeface "Itim" ]
+
+
+materialIcon : Icon msg -> Element msg
+materialIcon icon =
+    el [] <| html <| icon 24 Material.Icons.Types.Inherit
 
 
 
