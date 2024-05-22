@@ -26,39 +26,34 @@
       systems = [ "x86_64-linux" "i686-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin" ];
 
       perSystem = { config, self', inputs', pkgs, system, ... }: {
-        # TODO elm-live src/Main.elm --hot --start-page index.html --pushstate -- --output=elm.js
         packages.${system}.default = pkgs.runCommand "" {} '''';
         devenv.shells.default = {
-          packages = [
-            pkgs.elmPackages.elm-live
-            pkgs.nodePackages.http-server
-            (pkgs.writeScriptBin "build-frontend" ''
-              cd apps/frontend
-              mkdir dist
-              elm make src/Main.elm --output dist/elm.js --optimize
-              cp index.html dist
-              cp -r assets dist
-              cp *.js dist
-              cp manifest.json dist
-            '')
-          ];
           languages.elm.enable = true;
+          # languages.rust.enable = true;
 
-          # scripts.build-frontend.exec = ''
-          #   mkdir dist
-          #   elm make src/Main.elm --output dist/elm.js --optimize
-          #   cp index.html dist
-          #   cp -r assets dist
-          #   cp *.js dist
-          #   cp manifest.json dist
-          # '';
+          packages = [
+            pkgs.fermyon-spin
+          ];
 
-          scripts.dev-frontend.exec = ''
-            $cd apps/frontend; {pkgs.pkgs.elmPackages.elm-live}/bin/elm-live src/Main.elm -s index.html -u true -- --output elm.js
+          scripts.dev-web.exec = ''
+            cd $(git rev-parse --show-toplevel)
+            cd apps/web
+            ${pkgs.elmPackages.elm-live}/bin/elm-live src/Main.elm -d public -s index.html -u true -x /api -y http://127.0.0.1:3000/api -- --output public/elm.js
+          '';
+
+          scripts.dev-backend.exec = ''
+            cd $(git rev-parse --show-toplevel)
+            cd apps
+            ${pkgs.fermyon-spin}/bin/spin watch
+          '';
+
+          scripts.dev-all.exec = ''
+            dev-web & dev-backend
           '';
 
           processes = {
-            frontend.exec = "dev-frontend";
+            web.exec = "dev-web";
+            backend.exec = "dev-backend";
           };
         };
 

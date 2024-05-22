@@ -137,7 +137,7 @@ subscriptions _ =
 
 view : Model -> Browser.Document Msg
 view model =
-    { title = "DWYL App"
+    { title = "Magdeburger Spielplatznadel"
     , body =
         [ Html.node "link" [ Html.Attributes.rel "stylesheet", Html.Attributes.href "https://fonts.googleapis.com/css?family=Itim" ] []
         , case model.route of
@@ -162,7 +162,7 @@ viewMainRoute model =
             [ column [ spacing 16, width fill ]
                 [ placeholderLarger
                 , linePlaceholder 8
-                , linePlaceholder 2
+                , linePlaceholder 4
                 ]
             , map
             , column
