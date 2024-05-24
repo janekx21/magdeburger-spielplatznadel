@@ -126,6 +126,25 @@ port online : (Bool -> msg) -> Sub msg
 port pouchDB : String -> Cmd msg
 
 
+type alias CompelexType =
+    { a : String
+    , b : Size
+    }
+
+
+type Size
+    = Small
+    | Medium Int
+    | Large
+
+
+type BackendMsg
+    = FetchAllPlaygrounds CompelexType
+
+
+port backendRequest : BackendMsg -> Cmd msg
+
+
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch [ online Online ]
@@ -400,6 +419,12 @@ saveCapture appOnline capture =
     -- else
     -- if not online save the item in PouchDB via ports
     pouchDB capture
+
+
+
+-- backendMsgEncode : BackendMsg -> JE.Value
+-- backendMsgEncode capture =
+--     JE.object [ ( "text", JE.string capture ) ]
 
 
 captureEncode : String -> JE.Value
