@@ -9,6 +9,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Html
 import Html.Attributes
+import Html.Keyed
 import Lamdera
 import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
@@ -35,7 +36,7 @@ app =
 
 init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
 init url key =
-    ( FrontendModel key (parseUrl url) "" "" True
+    ( FrontendModel key (parseUrl url) Nothing "" "" True
     , Cmd.none
     )
 
@@ -69,7 +70,12 @@ update msg model =
                     )
 
         UrlChanged url ->
-            ( model, Cmd.none )
+            ( { model
+                | route = parseUrl url
+                , oldRoute = Just model.route
+              }
+            , Cmd.none
+            )
 
         NoOpFrontendMsg ->
             ( model, Cmd.none )
@@ -93,18 +99,45 @@ updateFromBackend msg model =
 
 view : Model -> Browser.Document FrontendMsg
 view model =
+    let
+        viewRoute route =
+            case route of
+                MainRoute ->
+                    viewMainRoute model
+
+                AwardsRoute ->
+                    viewAwardsRoute model
+
+                PlaygroundRoute guid ->
+                    viewPlaygroundRoute model
+    in
     { title = ""
     , body =
         [ Html.node "link" [ Html.Attributes.rel "stylesheet", Html.Attributes.href "https://fonts.googleapis.com/css?family=Itim" ] []
-        , case model.route of
-            MainRoute ->
-                viewMainRoute model
+        , viewRoute model.route
 
-            AwardsRoute ->
-                viewAwardsRoute model
-
-            PlaygroundRoute guid ->
-                viewPlaygroundRoute model
+        -- , Html.Lazy.lazy <|
+        --     Html.div
+        --         [ Html.Attributes.style "position" "absolute"
+        --         , Html.Attributes.style "height" "100%"
+        --         , Html.Attributes.style "width" "100%"
+        --         , Html.Attributes.class "old-view"
+        --         ]
+        --         [ case model.oldRoute of
+        --             Nothing ->
+        --                 Html.div [] []
+        --             Just route ->
+        --                 viewRoute route
+        --         ]
+        -- , Html.Lazy.lazy <|
+        --     Html.div
+        --         [ Html.Attributes.style "height" "100%"
+        --         , Html.Attributes.style "width" "100%"
+        --         , Html.Attributes.style "position" "absolute"
+        --         , Html.Attributes.class "new-view"
+        --         ]
+        --         [ viewRoute model.route
+        --         ]
         ]
     }
 
@@ -131,23 +164,37 @@ viewMainRoute model =
 
 
 viewAwardsRoute model =
-    layout [ width fill, height fill ] <|
+    layout [ width fill, height fill, behindContent <| el [ height fill, width (px 24), padding 8 ] <| column [ centerX, height fill ] <| (List.repeat 12 dot |> List.intersperse bound) ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 16, width fill ]
                 [ placeholderLarger
-                , linePlaceholder 8
+                , linePlaceholder 18
                 ]
-            , Element.row
+            , row
                 [ width fill, style "flex-wrap" "wrap", style "gap" "32px", justifyCenter ]
-                [ awardPlaceholder True
-                , awardPlaceholder False
-                , awardPlaceholder True
-                , awardPlaceholder True
-                , awardPlaceholder False
-                , awardPlaceholder True
-                , awardPlaceholder True
+                [ awardPlaceholder True 3 -9 True
+                , awardPlaceholder False 12 -4 False
+                , awardPlaceholder True -1 16 False
+                , awardPlaceholder True -8 1 False
+                , awardPlaceholder False 7 9 False
+                , awardPlaceholder True -8 4 False
+                , awardPlaceholder True -5 9 False
+                , awardPlaceholder False 1 -4 False
+                , awardPlaceholder True 12 -16 False
+                , awardPlaceholder True -3 12 False
+                , awardPlaceholder False -7 2 False
                 ]
             ]
+
+
+bound =
+    el [ paddingXY 0 2, centerX, height fill ] <|
+        el [ width (px 6), height fill, Background.color grayLight, Border.rounded 999 ] <|
+            none
+
+
+dot =
+    el [ width (px 12), height (px 12), Background.color grayDark, Border.rounded 999 ] <| none
 
 
 viewPlaygroundRoute model =
@@ -204,6 +251,10 @@ grayDark =
 
 white =
     rgb 1 1 1
+
+
+accent =
+    rgb 0.96 0.3 0.4
 
 
 mapPlaceholder =
@@ -265,23 +316,61 @@ playgroundItemPlaceholder km =
         }
 
 
-awardPlaceholder got =
+awardPlaceholder got offX offY new =
     el
-        ([ Border.rounded 16
-         , Background.color grayLight
-         , width (px 130)
-         , height (px 130)
-         ]
-            ++ (if got then
-                    []
+        [ Border.rounded 999
+        , width <| px 130
+        , height <| px 130
+        , Border.color grayLight
+        , Border.width 8
+        , Border.dashed
+        , inFront <|
+            if got then
+                el
+                    [ width fill
+                    , height fill
+                    , Border.color grayDark
+                    , Border.width 8
+                    , Border.rounded 999
+                    , Background.color grayLight
+                    , moveRight offX
+                    , moveDown offY
+                    , scale 1.1
+                    , inFront <|
+                        if new then
+                            el
+                                [ alignRight
+                                , alignBottom
+                                , Background.color white
+                                , Font.color grayDark
+                                , paddingXY 12 8
+                                , Border.rounded 999
+                                , Border.color accent
+                                , Border.width 8
+                                , moveRight 16
+                                , moveDown 16
+                                , rotate -0.3
+                                ]
+                            <|
+                                text "new!"
 
-                else
-                    [ alpha 0.4 ]
-               )
-        )
+                        else
+                            none
+                    ]
+                <|
+                    el
+                        [ centerX
+                        , centerY
+                        , Font.color grayDark
+                        ]
+                    <|
+                        iconSized Icons.stars 64
+
+            else
+                none
+        ]
     <|
-        el [ centerX, centerY, Font.color grayDark ] <|
-            iconSized Icons.stars 64
+        none
 
 
 buttonAwards =

@@ -8,6 +8,7 @@ import Url exposing (Url)
 type alias FrontendModel =
     { key : Nav.Key
     , route : Route
+    , oldRoute : Maybe Route
     , capture : String
     , message : String
     , online : Bool
