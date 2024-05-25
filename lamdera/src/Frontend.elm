@@ -1,6 +1,6 @@
-port module Main exposing (main)
+port module Frontend exposing (..)
 
-import Browser
+import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Element exposing (..)
 import Element.Background as Background
@@ -9,57 +9,39 @@ import Element.Font as Font
 import Element.Input as Input
 import Html
 import Html.Attributes
-import Http
-import Json.Decode as JD
-import Json.Encode as JE
+import Lamdera
 import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
+import Types exposing (..)
 import Url
 import Url.Parser as UP exposing ((</>), Parser, int, oneOf, s, string)
 
 
+type alias Model =
+    FrontendModel
 
--- MAIN
 
-
-main : Program () Model Msg
-main =
-    Browser.application
+app =
+    Lamdera.frontend
         { init = init
-        , view = view
-        , update = update
-        , subscriptions = subscriptions
+        , onUrlRequest = UrlClicked
         , onUrlChange = UrlChanged
-        , onUrlRequest = LinkClicked
+        , update = update
+        , updateFromBackend = updateFromBackend
+        , subscriptions = \m -> Sub.none
+        , view = view
         }
 
 
-
--- MODEL
-
-
-type alias Model =
-    { key : Nav.Key
-    , route : Route
-    , capture : String
-    , message : String
-    , online : Bool
-    }
-
-
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ url key =
-    ( Model key (parseUrl url) "" "" True, Cmd.none )
+init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
+init url key =
+    ( FrontendModel key (parseUrl url) "" "" True
+    , Cmd.none
+    )
 
 
 parseUrl url =
     UP.parse routeParser url |> Maybe.withDefault MainRoute
-
-
-type Route
-    = MainRoute
-    | PlaygroundRoute String
-    | AwardsRoute
 
 
 routeParser : Parser (Route -> a) a
@@ -71,34 +53,26 @@ routeParser =
         ]
 
 
-
--- UPDATE
-
-
-type Msg
-    = LinkClicked Browser.UrlRequest
-    | UrlChanged Url.Url
-    | Capture String
-    | CreateCapture
-    | SaveCaptureResult (Result Http.Error String)
-    | Online Bool
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : FrontendMsg -> Model -> ( Model, Cmd FrontendMsg )
 update msg model =
     case msg of
-        LinkClicked urlRequest ->
+        UrlClicked urlRequest ->
             case urlRequest of
-                Browser.Internal url ->
-                    ( model, Nav.pushUrl model.key (Url.toString url) )
+                Internal url ->
+                    ( model
+                    , Nav.pushUrl model.key (Url.toString url)
+                    )
 
-                Browser.External href ->
-                    ( model, Nav.load href )
+                External url ->
+                    ( model
+                    , Nav.load url
+                    )
 
         UrlChanged url ->
-            ( { model | route = parseUrl url }
-            , Cmd.none
-            )
+            ( model, Cmd.none )
+
+        NoOpFrontendMsg ->
+            ( model, Cmd.none )
 
         Capture text ->
             ( { model | capture = text }, Cmd.none )
@@ -106,38 +80,20 @@ update msg model =
         CreateCapture ->
             ( model, saveCapture model.online model.capture )
 
-        SaveCaptureResult (Ok response) ->
-            ( { model | capture = "", message = "Capture saved" }, Cmd.none )
-
-        SaveCaptureResult (Err e) ->
-            ( { model | message = "The capture couldn't be saved" }, Cmd.none )
-
         Online status ->
             ( { model | online = status }, Cmd.none )
 
 
-
--- SUBSCRIPTIONS
-
-
-port online : (Bool -> msg) -> Sub msg
-
-
-port pouchDB : String -> Cmd msg
+updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
+updateFromBackend msg model =
+    case msg of
+        NoOpToFrontend ->
+            ( model, Cmd.none )
 
 
-subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.batch [ online Online ]
-
-
-
--- VIEW
-
-
-view : Model -> Browser.Document Msg
+view : Model -> Browser.Document FrontendMsg
 view model =
-    { title = "Magdeburger Spielplatznadel"
+    { title = ""
     , body =
         [ Html.node "link" [ Html.Attributes.rel "stylesheet", Html.Attributes.href "https://fonts.googleapis.com/css?family=Itim" ] []
         , case model.route of
@@ -149,9 +105,6 @@ view model =
 
             PlaygroundRoute guid ->
                 viewPlaygroundRoute model
-
-        -- _ ->
-        --     layout [] <| text "TODO implement route"
         ]
     }
 
@@ -389,7 +342,7 @@ style key value =
 -- Capture
 
 
-saveCapture : Bool -> String -> Cmd Msg
+saveCapture : Bool -> String -> Cmd FrontendMsg
 saveCapture appOnline capture =
     -- if appOnline then
     -- Http.post
@@ -402,11 +355,16 @@ saveCapture appOnline capture =
     pouchDB capture
 
 
-captureEncode : String -> JE.Value
-captureEncode capture =
-    JE.object [ ( "text", JE.string capture ) ]
+port online : (Bool -> msg) -> Sub msg
 
 
-captureDecoder : JD.Decoder String
-captureDecoder =
-    JD.field "text" JD.string
+port pouchDB : String -> Cmd msg
+
+
+
+-- captureEncode : String -> JE.Value
+-- captureEncode capture =
+--     JE.object [ ( "text", JE.string capture ) ]
+-- captureDecoder : JD.Decoder String
+-- captureDecoder =
+--     JD.field "text" JD.string
