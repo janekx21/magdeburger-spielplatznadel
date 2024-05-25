@@ -97,36 +97,6 @@ updateFromBackend msg model =
             ( model, Cmd.none )
 
 
-port online : (Bool -> msg) -> Sub msg
-
-
-port pouchDB : String -> Cmd msg
-
-
-type alias CompelexType =
-    { a : String
-    , b : Size
-    }
-
-
-type Size
-    = Small
-    | Medium Int
-    | Large
-
-
-type BackendMsg
-    = FetchAllPlaygrounds CompelexType
-
-
-port backendRequest : BackendMsg -> Cmd msg
-
-
-subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.batch [ online Online ]
-
-
 
 -- VIEW
 
