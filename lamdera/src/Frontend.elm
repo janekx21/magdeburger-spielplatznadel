@@ -1,6 +1,6 @@
-port module Main exposing (main)
+port module Frontend exposing (..)
 
-import Browser
+import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Element exposing (..)
 import Element.Background as Background
@@ -9,57 +9,40 @@ import Element.Font as Font
 import Element.Input as Input
 import Html
 import Html.Attributes
-import Http
-import Json.Decode as JD
-import Json.Encode as JE
+import Html.Keyed
+import Lamdera
 import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
+import Types exposing (..)
 import Url
 import Url.Parser as UP exposing ((</>), Parser, int, oneOf, s, string)
 
 
+type alias Model =
+    FrontendModel
 
--- MAIN
 
-
-main : Program () Model Msg
-main =
-    Browser.application
+app =
+    Lamdera.frontend
         { init = init
-        , view = view
-        , update = update
-        , subscriptions = subscriptions
+        , onUrlRequest = UrlClicked
         , onUrlChange = UrlChanged
-        , onUrlRequest = LinkClicked
+        , update = update
+        , updateFromBackend = updateFromBackend
+        , subscriptions = \m -> Sub.none
+        , view = view
         }
 
 
-
--- MODEL
-
-
-type alias Model =
-    { key : Nav.Key
-    , route : Route
-    , capture : String
-    , message : String
-    , online : Bool
-    }
-
-
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ url key =
-    ( Model key (parseUrl url) "" "" True, Cmd.none )
+init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
+init url key =
+    ( FrontendModel key (parseUrl url) Nothing "" "" True
+    , Cmd.none
+    )
 
 
 parseUrl url =
     UP.parse routeParser url |> Maybe.withDefault MainRoute
-
-
-type Route
-    = MainRoute
-    | PlaygroundRoute String
-    | AwardsRoute
 
 
 routeParser : Parser (Route -> a) a
@@ -71,34 +54,31 @@ routeParser =
         ]
 
 
-
--- UPDATE
-
-
-type Msg
-    = LinkClicked Browser.UrlRequest
-    | UrlChanged Url.Url
-    | Capture String
-    | CreateCapture
-    | SaveCaptureResult (Result Http.Error String)
-    | Online Bool
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : FrontendMsg -> Model -> ( Model, Cmd FrontendMsg )
 update msg model =
     case msg of
-        LinkClicked urlRequest ->
+        UrlClicked urlRequest ->
             case urlRequest of
-                Browser.Internal url ->
-                    ( model, Nav.pushUrl model.key (Url.toString url) )
+                Internal url ->
+                    ( model
+                    , Nav.pushUrl model.key (Url.toString url)
+                    )
 
-                Browser.External href ->
-                    ( model, Nav.load href )
+                External url ->
+                    ( model
+                    , Nav.load url
+                    )
 
         UrlChanged url ->
-            ( { model | route = parseUrl url }
+            ( { model
+                | route = parseUrl url
+                , oldRoute = Just model.route
+              }
             , Cmd.none
             )
+
+        NoOpFrontendMsg ->
+            ( model, Cmd.none )
 
         Capture text ->
             ( { model | capture = text }, Cmd.none )
@@ -106,18 +86,15 @@ update msg model =
         CreateCapture ->
             ( model, saveCapture model.online model.capture )
 
-        SaveCaptureResult (Ok response) ->
-            ( { model | capture = "", message = "Capture saved" }, Cmd.none )
-
-        SaveCaptureResult (Err e) ->
-            ( { model | message = "The capture couldn't be saved" }, Cmd.none )
-
         Online status ->
             ( { model | online = status }, Cmd.none )
 
 
-
--- SUBSCRIPTIONS
+updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
+updateFromBackend msg model =
+    case msg of
+        NoOpToFrontend ->
+            ( model, Cmd.none )
 
 
 port online : (Bool -> msg) -> Sub msg
@@ -154,23 +131,47 @@ subscriptions _ =
 -- VIEW
 
 
-view : Model -> Browser.Document Msg
+view : Model -> Browser.Document FrontendMsg
 view model =
-    { title = "Magdeburger Spielplatznadel"
+    let
+        viewRoute route =
+            case route of
+                MainRoute ->
+                    viewMainRoute model
+
+                AwardsRoute ->
+                    viewAwardsRoute model
+
+                PlaygroundRoute guid ->
+                    viewPlaygroundRoute model
+    in
+    { title = ""
     , body =
         [ Html.node "link" [ Html.Attributes.rel "stylesheet", Html.Attributes.href "https://fonts.googleapis.com/css?family=Itim" ] []
-        , case model.route of
-            MainRoute ->
-                viewMainRoute model
+        , viewRoute model.route
 
-            AwardsRoute ->
-                viewAwardsRoute model
-
-            PlaygroundRoute guid ->
-                viewPlaygroundRoute model
-
-        -- _ ->
-        --     layout [] <| text "TODO implement route"
+        -- , Html.Lazy.lazy <|
+        --     Html.div
+        --         [ Html.Attributes.style "position" "absolute"
+        --         , Html.Attributes.style "height" "100%"
+        --         , Html.Attributes.style "width" "100%"
+        --         , Html.Attributes.class "old-view"
+        --         ]
+        --         [ case model.oldRoute of
+        --             Nothing ->
+        --                 Html.div [] []
+        --             Just route ->
+        --                 viewRoute route
+        --         ]
+        -- , Html.Lazy.lazy <|
+        --     Html.div
+        --         [ Html.Attributes.style "height" "100%"
+        --         , Html.Attributes.style "width" "100%"
+        --         , Html.Attributes.style "position" "absolute"
+        --         , Html.Attributes.class "new-view"
+        --         ]
+        --         [ viewRoute model.route
+        --         ]
         ]
     }
 
@@ -197,23 +198,37 @@ viewMainRoute model =
 
 
 viewAwardsRoute model =
-    layout [ width fill, height fill ] <|
+    layout [ width fill, height fill, behindContent <| el [ height fill, width (px 24), padding 8 ] <| column [ centerX, height fill ] <| (List.repeat 12 dot |> List.intersperse bound) ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 16, width fill ]
                 [ placeholderLarger
-                , linePlaceholder 8
+                , linePlaceholder 18
                 ]
-            , Element.row
+            , row
                 [ width fill, style "flex-wrap" "wrap", style "gap" "32px", justifyCenter ]
-                [ awardPlaceholder True
-                , awardPlaceholder False
-                , awardPlaceholder True
-                , awardPlaceholder True
-                , awardPlaceholder False
-                , awardPlaceholder True
-                , awardPlaceholder True
+                [ awardPlaceholder True 3 -9 True
+                , awardPlaceholder False 12 -4 False
+                , awardPlaceholder True -1 16 False
+                , awardPlaceholder True -8 1 False
+                , awardPlaceholder False 7 9 False
+                , awardPlaceholder True -8 4 False
+                , awardPlaceholder True -5 9 False
+                , awardPlaceholder False 1 -4 False
+                , awardPlaceholder True 12 -16 False
+                , awardPlaceholder True -3 12 False
+                , awardPlaceholder False -7 2 False
                 ]
             ]
+
+
+bound =
+    el [ paddingXY 0 2, centerX, height fill ] <|
+        el [ width (px 6), height fill, Background.color grayLight, Border.rounded 999 ] <|
+            none
+
+
+dot =
+    el [ width (px 12), height (px 12), Background.color grayDark, Border.rounded 999 ] <| none
 
 
 viewPlaygroundRoute model =
@@ -270,6 +285,10 @@ grayDark =
 
 white =
     rgb 1 1 1
+
+
+accent =
+    rgb 0.96 0.3 0.4
 
 
 mapPlaceholder =
@@ -331,23 +350,61 @@ playgroundItemPlaceholder km =
         }
 
 
-awardPlaceholder got =
+awardPlaceholder got offX offY new =
     el
-        ([ Border.rounded 16
-         , Background.color grayLight
-         , width (px 130)
-         , height (px 130)
-         ]
-            ++ (if got then
-                    []
+        [ Border.rounded 999
+        , width <| px 130
+        , height <| px 130
+        , Border.color grayLight
+        , Border.width 8
+        , Border.dashed
+        , inFront <|
+            if got then
+                el
+                    [ width fill
+                    , height fill
+                    , Border.color grayDark
+                    , Border.width 8
+                    , Border.rounded 999
+                    , Background.color grayLight
+                    , moveRight offX
+                    , moveDown offY
+                    , scale 1.1
+                    , inFront <|
+                        if new then
+                            el
+                                [ alignRight
+                                , alignBottom
+                                , Background.color white
+                                , Font.color grayDark
+                                , paddingXY 12 8
+                                , Border.rounded 999
+                                , Border.color accent
+                                , Border.width 8
+                                , moveRight 16
+                                , moveDown 16
+                                , rotate -0.3
+                                ]
+                            <|
+                                text "new!"
 
-                else
-                    [ alpha 0.4 ]
-               )
-        )
+                        else
+                            none
+                    ]
+                <|
+                    el
+                        [ centerX
+                        , centerY
+                        , Font.color grayDark
+                        ]
+                    <|
+                        iconSized Icons.stars 64
+
+            else
+                none
+        ]
     <|
-        el [ centerX, centerY, Font.color grayDark ] <|
-            iconSized Icons.stars 64
+        none
 
 
 buttonAwards =
@@ -408,7 +465,7 @@ style key value =
 -- Capture
 
 
-saveCapture : Bool -> String -> Cmd Msg
+saveCapture : Bool -> String -> Cmd FrontendMsg
 saveCapture appOnline capture =
     -- if appOnline then
     -- Http.post
@@ -427,11 +484,16 @@ saveCapture appOnline capture =
 --     JE.object [ ( "text", JE.string capture ) ]
 
 
-captureEncode : String -> JE.Value
-captureEncode capture =
-    JE.object [ ( "text", JE.string capture ) ]
+port online : (Bool -> msg) -> Sub msg
 
 
-captureDecoder : JD.Decoder String
-captureDecoder =
-    JD.field "text" JD.string
+port pouchDB : String -> Cmd msg
+
+
+
+-- captureEncode : String -> JE.Value
+-- captureEncode capture =
+--     JE.object [ ( "text", JE.string capture ) ]
+-- captureDecoder : JD.Decoder String
+-- captureDecoder =
+--     JD.field "text" JD.string

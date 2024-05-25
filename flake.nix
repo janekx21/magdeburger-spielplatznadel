@@ -29,31 +29,13 @@
         packages.${system}.default = pkgs.runCommand "" {} '''';
         devenv.shells.default = {
           languages.elm.enable = true;
-          # languages.rust.enable = true;
 
           packages = [
-            pkgs.fermyon-spin
+            pkgs.elmPackages.lamdera
           ];
 
-          scripts.dev-web.exec = ''
-            cd $(git rev-parse --show-toplevel)
-            cd apps/web
-            ${pkgs.elmPackages.elm-live}/bin/elm-live src/Main.elm -d public -s index.html -u true -x /api -y http://127.0.0.1:3000/api -- --output public/elm.js
-          '';
-
-          scripts.dev-backend.exec = ''
-            cd $(git rev-parse --show-toplevel)
-            cd apps
-            ${pkgs.fermyon-spin}/bin/spin watch
-          '';
-
-          scripts.dev-all.exec = ''
-            dev-web & dev-backend
-          '';
-
           processes = {
-            web.exec = "dev-web";
-            backend.exec = "dev-backend";
+            lamdera.exec = "lamdera live";
           };
         };
 
