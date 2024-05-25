@@ -34,9 +34,17 @@ app =
         }
 
 
+
+-- Init
+
+
 init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
 init url key =
-    ( FrontendModel key (parseUrl url) Nothing "" "" True
+    let
+        route =
+            parseUrl url
+    in
+    ( FrontendModel key route "" "" True
     , Cmd.none
     )
 
@@ -50,8 +58,13 @@ routeParser =
     oneOf
         [ UP.map MainRoute UP.top
         , UP.map PlaygroundRoute (UP.s "playground" </> UP.string)
+        , UP.map NewAwardRoute (UP.s "new-award" </> UP.string)
         , UP.map AwardsRoute (UP.s "award")
         ]
+
+
+
+-- Update
 
 
 update : FrontendMsg -> Model -> ( Model, Cmd FrontendMsg )
@@ -70,12 +83,7 @@ update msg model =
                     )
 
         UrlChanged url ->
-            ( { model
-                | route = parseUrl url
-                , oldRoute = Just model.route
-              }
-            , Cmd.none
-            )
+            ( { model | route = parseUrl url }, Cmd.none )
 
         NoOpFrontendMsg ->
             ( model, Cmd.none )
@@ -89,6 +97,9 @@ update msg model =
         Online status ->
             ( { model | online = status }, Cmd.none )
 
+        ReplaceUrl url ->
+            ( model, Nav.replaceUrl model.key url )
+
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
 updateFromBackend msg model =
@@ -98,7 +109,7 @@ updateFromBackend msg model =
 
 
 
--- VIEW
+-- View
 
 
 view : Model -> Browser.Document FrontendMsg
@@ -114,6 +125,9 @@ view model =
 
                 PlaygroundRoute guid ->
                     viewPlaygroundRoute model
+
+                NewAwardRoute guid ->
+                    viewNewAwardRoute model
     in
     { title = ""
     , body =
@@ -147,7 +161,14 @@ view model =
 
 
 viewMainRoute model =
-    layout [ width fill, height fill, inFront <| el [ alignBottom, alignRight, padding 32 ] <| buttonAwards ] <|
+    layout
+        [ width fill
+        , height fill
+        , inFront <|
+            el [ alignBottom, alignRight, padding 32 ] <|
+                buttonAwards
+        ]
+    <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 16, width fill ]
                 [ placeholderLarger
@@ -164,10 +185,35 @@ viewMainRoute model =
                 , playgroundItemPlaceholder 7.9
                 , playgroundItemPlaceholder 12
                 ]
+            , column
+                [ spacing 16, width fill ]
+                [ el [ Font.bold ] <| text "debuggin menu"
+                , link []
+                    { url = "/new-award/placeholder"
+                    , label =
+                        el
+                            [ padding 16
+                            , Background.color grayDark
+                            , Border.rounded 16
+                            , Font.color white
+                            ]
+                        <|
+                            text "Neuer Stempel"
+                    }
+                ]
             ]
 
 
 viewAwardsRoute model =
+    let
+        bound =
+            el [ paddingXY 0 2, centerX, height fill ] <|
+                el [ width (px 6), height fill, Background.color grayLight, Border.rounded 999 ] <|
+                    none
+
+        dot =
+            el [ width (px 12), height (px 12), Background.color grayDark, Border.rounded 999 ] <| none
+    in
     layout [ width fill, height fill, behindContent <| el [ height fill, width (px 24), padding 8 ] <| column [ centerX, height fill ] <| (List.repeat 12 dot |> List.intersperse bound) ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 16, width fill ]
@@ -191,14 +237,48 @@ viewAwardsRoute model =
             ]
 
 
-bound =
-    el [ paddingXY 0 2, centerX, height fill ] <|
-        el [ width (px 6), height fill, Background.color grayLight, Border.rounded 999 ] <|
-            none
-
-
-dot =
-    el [ width (px 12), height (px 12), Background.color grayDark, Border.rounded 999 ] <| none
+viewNewAwardRoute model =
+    layout [ width fill, height fill ] <|
+        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+            [ column
+                [ spacing 16
+                , width fill
+                , centerY
+                , above <|
+                    el
+                        [ width fill
+                        ]
+                    <|
+                        image
+                            [ width fill
+                            , moveDown 45
+                            ]
+                            { src = "/assets/images/stamp.svg"
+                            , description = "a stamp"
+                            }
+                , below <|
+                    column [ spacing 16, width fill ]
+                        [ placeholderLarger
+                        , linePlaceholder 18
+                        , linePlaceholder 4
+                        , replacingLink [ centerX, padding 16 ]
+                            { url = "/award"
+                            , label =
+                                el
+                                    [ padding 16
+                                    , Background.color grayDark
+                                    , Border.rounded 16
+                                    , Font.color white
+                                    , Font.size 32
+                                    ]
+                                <|
+                                    text "Eintragen"
+                            }
+                        ]
+                ]
+                [ el [ centerX, paddingXY 0 100, scale 1.7 ] <| awardPlaceholder True 8 4 True
+                ]
+            ]
 
 
 viewPlaygroundRoute model =
@@ -226,6 +306,10 @@ viewPlaygroundRoute model =
             ]
 
 
+
+-- Elements
+
+
 linePlaceholder space =
     row [ width fill ]
         [ placeholder
@@ -243,22 +327,6 @@ placeholderLarger =
 
 placeholderImage =
     el [ Border.rounded 16, Background.color grayLight, width (px 120), height (px 120) ] <| el [ centerX, centerY, Font.color grayDark ] <| icon Icons.image
-
-
-grayLight =
-    rgb255 224 231 236
-
-
-grayDark =
-    rgb255 148 162 171
-
-
-white =
-    rgb 1 1 1
-
-
-accent =
-    rgb 0.96 0.3 0.4
 
 
 mapPlaceholder =
@@ -284,7 +352,10 @@ map =
         ]
     <|
         html <|
-            Html.node "my-custom-element" [] []
+            Html.node "my-custom-element"
+                [ Html.Attributes.attribute "lat-lng" "52.131667,11.639167"
+                ]
+                []
 
 
 mapCollapsed =
@@ -356,7 +427,7 @@ awardPlaceholder got offX offY new =
                                 , rotate -0.3
                                 ]
                             <|
-                                text "new!"
+                                text "neu!"
 
                         else
                             none
@@ -392,6 +463,24 @@ buttonAwards =
         }
 
 
+icon : Icon msg -> Element msg
+icon icon_ =
+    iconSized icon_ 24
+
+
+iconSized : Icon msg -> Int -> Element msg
+iconSized icon_ size =
+    el [] <| html <| icon_ size Material.Icons.Types.Inherit
+
+
+replacingLink attr { url, label } =
+    Input.button attr { onPress = Just <| ReplaceUrl url, label = label }
+
+
+
+-- Utility
+
+
 square =
     aspect 1 1
 
@@ -412,58 +501,40 @@ itim =
     Font.family [ Font.typeface "Itim" ]
 
 
-icon : Icon msg -> Element msg
-icon icon_ =
-    el [] <| html <| icon_ 24 Material.Icons.Types.Inherit
-
-
-iconSized : Icon msg -> Int -> Element msg
-iconSized icon_ size =
-    el [] <| html <| icon_ size Material.Icons.Types.Inherit
-
-
 style key value =
     htmlAttribute <| Html.Attributes.style key value
 
 
 
--- onlineView : Bool -> Html.Html Msg
--- onlineView onlineStatus =
---     div [ classList [ ( "dn", onlineStatus ) ] ]
---         [ img [ src "/assets/images/signal_wifi_off.svg", alt "offline icon" ] []
---         ]
--- Capture
+-- Theme
+
+
+grayLight =
+    rgb255 224 231 236
+
+
+grayDark =
+    rgb255 148 162 171
+
+
+white =
+    rgb 1 1 1
+
+
+accent =
+    rgb 0.96 0.3 0.4
+
+
+
+-- Lab
 
 
 saveCapture : Bool -> String -> Cmd FrontendMsg
 saveCapture appOnline capture =
-    -- if appOnline then
-    -- Http.post
-    -- { url = "https://dwylapp.herokuapp.com/api/captures/create"
-    --         , body = Http.jsonBody (captureEncode capture)
-    --         , expect = Http.expectJson SaveCaptureResult captureDecoder
-    --         }
-    -- else
-    -- if not online save the item in PouchDB via ports
     pouchDB capture
-
-
-
--- backendMsgEncode : BackendMsg -> JE.Value
--- backendMsgEncode capture =
---     JE.object [ ( "text", JE.string capture ) ]
 
 
 port online : (Bool -> msg) -> Sub msg
 
 
 port pouchDB : String -> Cmd msg
-
-
-
--- captureEncode : String -> JE.Value
--- captureEncode capture =
---     JE.object [ ( "text", JE.string capture ) ]
--- captureDecoder : JD.Decoder String
--- captureDecoder =
---     JD.field "text" JD.string

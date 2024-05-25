@@ -8,7 +8,6 @@ import Url exposing (Url)
 type alias FrontendModel =
     { key : Nav.Key
     , route : Route
-    , oldRoute : Maybe Route
     , capture : String
     , message : String
     , online : Bool
@@ -19,6 +18,7 @@ type Route
     = MainRoute
     | PlaygroundRoute String
     | AwardsRoute
+    | NewAwardRoute String
 
 
 type alias BackendModel =
@@ -32,6 +32,7 @@ type FrontendMsg
     | Capture String
     | CreateCapture
     | Online Bool
+    | ReplaceUrl String
     | NoOpFrontendMsg
 
 
