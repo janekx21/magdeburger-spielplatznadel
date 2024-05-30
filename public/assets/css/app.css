@@ -4,9 +4,12 @@ body {
   height: 100%;
 }
 
-body {
-  margin: 0;
-}
+/*
+Some stuff comes with lamdera this is one of the things
+*/
+/* body { */
+/* margin: 0; */
+/* } */
 
 .resize-none {
   resize: none;

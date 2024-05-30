@@ -24,14 +24,17 @@ class MyCustomElement extends HTMLElement {
       iconSize: [50, 49],
       iconAnchor: [25, 49],
       popupAnchor: [-12, -30],
-      // shadowUrl: "my-icon-shadow.png",
-      // shadowSize: [68, 95],
-      // shadowAnchor: [22, 94],
+      shadowUrl: "/assets/images/playground_icon_1_shadow.png",
+      shadowSize: [50, 49],
+      shadowAnchor: [25, 49],
     });
 
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}{r}.png", {
       // attribution:
       //   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      // tileSize: 256,
+      // zoomOffset: -1,
+      detectRetina: true,
     }).addTo(this.map);
 
     L.marker([52.131667, 11.639167], { icon: myIcon })

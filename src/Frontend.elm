@@ -174,6 +174,8 @@ viewMainRoute model =
                 [ placeholderLarger
                 , linePlaceholder 8
                 , linePlaceholder 4
+                , linePlaceholder 4
+                , linePlaceholder 4
                 ]
             , map
             , column
