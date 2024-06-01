@@ -15,10 +15,6 @@ Some stuff comes with lamdera this is one of the things
   resize: none;
 }
 
-my-custom-element {
-  height: 100%;
-}
-
 .old-view {
   animation-name: out;
   animation-duration: 4s;

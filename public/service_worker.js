@@ -1,28 +1,59 @@
-// self.addEventListener("install", function (e) {
-//   console.log("Service Worker cache disabled");
-//   return;
-//   e.waitUntil(
-//     caches.open("dwylapp").then(function (cache) {
-//       console.log("Service Worker will cache now");
-//       return cache.addAll([
-//         "/",
-//         "/manifest.json",
-//         "/elm.js",
-//         "/assets/images/dwyl.png",
-//         "/assets/images/signal_wifi_off.svg",
-//         "/assets/css/tachyons.css",
-//         "/assets/css/app.css",
-//       ]);
-//     }),
-//   );
-// });
+self.addEventListener("install", function (e) {
+  // console.log("Service Worker install disabled");
+  // return;
+  console.log("PWA about to install");
+  e.waitUntil(
+    caches
+      .open("magdeburger-spielplatznadel")
+      .then(async (cache) => {
+        console.log("Service Worker will cache now");
+        const cacheList = [
+          "/",
+          "/manifest.json",
+          // "/elm.js", // not needed?
+          "/assets/Itim-Regular.ttf",
+          "/assets/css/app.css",
+          "/assets/images/logo.svg",
+          "/assets/images/stamp.svg",
+          "/assets/images/playground_icon_1.png",
+          "/assets/images/playground_icon_1_shadow.png",
+          "/assets/images/logo/logo72x72.png",
+          "/assets/images/logo/logo96x96.png",
+          "/assets/images/logo/logo128x128.png",
+          "/assets/images/logo/logo144x144.png",
+          "/assets/images/logo/logo152x152.png",
+          "/assets/images/logo/logo192x192.png",
+          "/assets/images/logo/logo384x384.png",
+          "/assets/images/logo/logo512x512.png",
+          "/assets/images/screenshots/pixel7_home.png",
+          "/manifest.json",
+          "/custom_elements.js",
+          "/service_worker.js",
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "https://fonts.googleapis.com/css?family=Itim",
+          "/frontend.e3jhrsqq.js",
+        ];
+        for (const addr of cacheList) {
+          console.log("caching", addr);
+          await cache.add(addr);
+        }
+        return cache.addAll([]);
+      })
+      .catch((error) => console.error(error)),
+  );
+});
 
 self.addEventListener("fetch", function (event) {
-  console.log("Service Worker cache disabled");
-  // return;
   event.respondWith(
-    caches.match(event.request).then(function (response) {
-      return response || fetch(event.request);
+    caches.match(event.request).then((response) => {
+      if (response) {
+        console.log("fetch from catche", response);
+        return response;
+      } else {
+        console.log("fetch from web", response);
+        return fetch(event.request);
+      }
     }),
   );
 });

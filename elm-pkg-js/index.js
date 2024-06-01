@@ -3,20 +3,18 @@ exports.init = async function (app) {
   //   //   // sync data with server
   //   //   app.ports.online.send(true);
   //   // }, false);
-
   //   // window.addEventListener('offline', function (e) {
   //   //   // save data locally
   //   //   app.ports.online.send(false);
   //   // }, false);
-
   //   // app.ports.pouchDB.subscribe(function (capture) {
   //   //   console.log("capture offline", capture)
   //   //   saveCapture(capture)
   //   // });
-  app.ports.pouchDB.subscribe((data) => {
-    console.log(data);
-  });
-  console.log("hello world!", app);
+  // app.ports.pouchDB.subscribe((data) => {
+  // console.log(data);
+  // });
+  // console.log("hello world!", app);
 };
 
 // if ('serviceWorker' in navigator) {

@@ -131,8 +131,7 @@ view model =
     in
     { title = ""
     , body =
-        [ Html.node "link" [ Html.Attributes.rel "stylesheet", Html.Attributes.href "https://fonts.googleapis.com/css?family=Itim" ] []
-        , viewRoute model.route
+        [ viewRoute model.route
 
         -- , Html.Lazy.lazy <|
         --     Html.div
@@ -174,8 +173,7 @@ viewMainRoute model =
                 [ placeholderLarger
                 , linePlaceholder 8
                 , linePlaceholder 4
-                , linePlaceholder 4
-                , linePlaceholder 4
+                , linePlaceholder 12
                 ]
             , map
             , column
@@ -195,7 +193,7 @@ viewMainRoute model =
                     , label =
                         el
                             [ padding 16
-                            , Background.color grayDark
+                            , Background.color secondaryDark
                             , Border.rounded 16
                             , Font.color white
                             ]
@@ -210,11 +208,11 @@ viewAwardsRoute model =
     let
         bound =
             el [ paddingXY 0 2, centerX, height fill ] <|
-                el [ width (px 6), height fill, Background.color grayLight, Border.rounded 999 ] <|
+                el [ width (px 6), height fill, Background.color secondary, Border.rounded 999 ] <|
                     none
 
         dot =
-            el [ width (px 12), height (px 12), Background.color grayDark, Border.rounded 999 ] <| none
+            el [ width (px 12), height (px 12), Background.color secondaryDark, Border.rounded 999 ] <| none
     in
     layout [ width fill, height fill, behindContent <| el [ height fill, width (px 24), padding 8 ] <| column [ centerX, height fill ] <| (List.repeat 12 dot |> List.intersperse bound) ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
@@ -268,7 +266,7 @@ viewNewAwardRoute model =
                             , label =
                                 el
                                     [ padding 16
-                                    , Background.color grayDark
+                                    , Background.color secondaryDark
                                     , Border.rounded 16
                                     , Font.color white
                                     , Font.size 32
@@ -286,7 +284,7 @@ viewNewAwardRoute model =
 viewPlaygroundRoute model =
     layout [ width fill, height fill ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
-            [ el [ Font.color grayDark, centerX ] <| iconSized Icons.toys 64
+            [ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
             , column [ spacing 16, width fill ]
                 [ placeholderLarger
                 , linePlaceholder 8
@@ -320,27 +318,27 @@ linePlaceholder space =
 
 
 placeholder =
-    el [ Border.rounded 16, Background.color grayLight, width fill, height (px 36) ] <| none
+    el [ Border.rounded 16, Background.color secondary, width fill, height (px 36) ] <| none
 
 
 placeholderLarger =
-    el [ Border.rounded 16, Background.color grayDark, width fill, height (px 48) ] <| none
+    el [ Border.rounded 16, Background.color secondaryDark, width fill, height (px 48) ] <| none
 
 
 placeholderImage =
-    el [ Border.rounded 16, Background.color grayLight, width (px 120), height (px 120) ] <| el [ centerX, centerY, Font.color grayDark ] <| icon Icons.image
+    el [ Border.rounded 16, Background.color secondary, width (px 120), height (px 120) ] <| el [ centerX, centerY, Font.color secondaryDark ] <| icon Icons.image
 
 
 mapPlaceholder =
     el
         [ Border.rounded 16
-        , Background.color grayLight
+        , Background.color secondary
         , width fill
         , square
         , flexBasisAuto
         ]
     <|
-        el [ centerX, centerY, itim, Font.color grayDark ] <|
+        el [ centerX, centerY, itim, Font.color secondaryDark ] <|
             text "map"
 
 
@@ -353,11 +351,26 @@ map =
         , style "overflow" "hidden"
         ]
     <|
-        html <|
-            Html.node "my-custom-element"
-                [ Html.Attributes.attribute "lat-lng" "52.131667,11.639167"
-                ]
-                []
+        leafletMap { position = ( 52.131667, 11.639167 ) }
+
+
+type alias LeafletMapConfig =
+    { position : ( Float, Float )
+    }
+
+
+leafletMap : LeafletMapConfig -> Element msg
+leafletMap { position } =
+    let
+        ( lat, lng ) =
+            position
+    in
+    html <|
+        Html.node "leaflet-map"
+            [ Html.Attributes.attribute "lat-lng" (String.fromFloat lat ++ "," ++ String.fromFloat lng)
+            , Html.Attributes.style "height" "100%"
+            ]
+            []
 
 
 mapCollapsed =
@@ -369,21 +382,20 @@ mapCollapsed =
         , style "overflow" "hidden"
         ]
     <|
-        html <|
-            Html.node "my-custom-element" [] []
+        leafletMap { position = ( 50, 11 ) }
 
 
 playgroundItemPlaceholder km =
     link
         [ Border.rounded 16
-        , Background.color grayLight
+        , Background.color secondary
         , width fill
         , height (px 64)
         , paddingXY 24 0
         ]
     <|
         { label =
-            row [ centerY, width fill, Font.color grayDark ]
+            row [ centerY, width fill, Font.color secondaryDark ]
                 [ icon Icons.local_play
                 , el [ alignRight, itim, Font.size 24 ] <|
                     text <|
@@ -398,7 +410,7 @@ awardPlaceholder got offX offY new =
         [ Border.rounded 999
         , width <| px 130
         , height <| px 130
-        , Border.color grayLight
+        , Border.color secondary
         , Border.width 8
         , Border.dashed
         , inFront <|
@@ -406,10 +418,10 @@ awardPlaceholder got offX offY new =
                 el
                     [ width fill
                     , height fill
-                    , Border.color grayDark
+                    , Border.color secondaryDark
                     , Border.width 8
                     , Border.rounded 999
-                    , Background.color grayLight
+                    , Background.color secondary
                     , moveRight offX
                     , moveDown offY
                     , scale 1.1
@@ -419,7 +431,7 @@ awardPlaceholder got offX offY new =
                                 [ alignRight
                                 , alignBottom
                                 , Background.color white
-                                , Font.color grayDark
+                                , Font.color secondaryDark
                                 , paddingXY 12 8
                                 , Border.rounded 999
                                 , Border.color accent
@@ -438,7 +450,7 @@ awardPlaceholder got offX offY new =
                     el
                         [ centerX
                         , centerY
-                        , Font.color grayDark
+                        , Font.color secondaryDark
                         ]
                     <|
                         iconSized Icons.stars 64
@@ -452,7 +464,7 @@ awardPlaceholder got offX offY new =
 
 buttonAwards =
     link
-        [ Background.color grayDark
+        [ Background.color secondaryDark
         , Border.rounded 999
         , padding 16
         , Font.color white
@@ -509,22 +521,36 @@ style key value =
 
 
 -- Theme
+-- gray ligth
+--    rgb255 224 231 236
+-- gray drak
+--    rgb255 148 162 171
+-- green
+--    rgb255 151 214 115
 
 
-grayLight =
-    rgb255 224 231 236
+primary =
+    rgb255 151 214 115
 
 
-grayDark =
-    rgb255 148 162 171
+secondary =
+    rgb255 244 215 190
 
 
-white =
-    rgb 1 1 1
+secondaryDark =
+    rgb255 233 124 30
 
 
 accent =
     rgb 0.96 0.3 0.4
+
+
+black =
+    rgb 0 0 0
+
+
+white =
+    rgb 1 1 1
 
 
 

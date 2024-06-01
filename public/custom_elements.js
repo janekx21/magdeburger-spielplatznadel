@@ -10,7 +10,7 @@ class MyCustomElement extends HTMLElement {
   }
 
   connectedCallback() {
-    console.log(`Map elment added to page with ${this.latLng}`);
+    // console.log(`Map elment added to page with ${this.latLng}`);
 
     //const container = document.createElement("div");
 
@@ -29,12 +29,18 @@ class MyCustomElement extends HTMLElement {
       shadowAnchor: [25, 49],
     });
 
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}{r}.png", {
+    // https://wiki.openstreetmap.org/wiki/Raster_tile_providers
+    const adress =
+      "https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg";
+    // https://tile.openstreetmap.org
+    // "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    L.tileLayer(adress, {
+      // {r}
       // attribution:
       //   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       // tileSize: 256,
       // zoomOffset: -1,
-      detectRetina: true,
+      detectRetina: false,
     }).addTo(this.map);
 
     L.marker([52.131667, 11.639167], { icon: myIcon })
@@ -44,20 +50,19 @@ class MyCustomElement extends HTMLElement {
   }
 
   disconnectedCallback() {
-    console.log("Custom element removed from page.");
+    // console.log("Custom element removed from page.");
   }
 
   adoptedCallback() {
-    console.log("Custom element moved to new page.");
+    // console.log("Custom element moved to new page.");
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
-    console.log(`Attribute ${name} has changed to ${newValue}`);
+    // console.log(`Attribute ${name} has changed to ${newValue}`);
     switch (name) {
       case "lat-lng":
         const latLng = newValue.split(",").map((x) => Number(x));
         this.latLng = latLng;
-        console.log("latLng", latLng);
         if (this.map != null) {
           this.map.setView(latLng, 13);
         }
@@ -66,4 +71,4 @@ class MyCustomElement extends HTMLElement {
   }
 }
 
-customElements.define("my-custom-element", MyCustomElement);
+customElements.define("leaflet-map", MyCustomElement);
