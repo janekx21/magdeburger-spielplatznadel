@@ -41,6 +41,20 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker
       .register('/service_worker.js')
-      .then(function () {console.log("Service Worker Registered");});
+      .then(() => {console.log("Service Worker Registered");});
   }
+</script>
+<script>
+
+  const {fetch: originalFetch} = window;
+  window.fetch = async (...args) => {
+    let [resource, config] = args;
+    console.log("fetch interception", resource, config);
+    // request interceptor here
+    const response = await originalFetch(resource, config);
+    // response interceptor here
+    //return response;
+    return null;
+  };
+  console.log("adding new fetch");
 </script>

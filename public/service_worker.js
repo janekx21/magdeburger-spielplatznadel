@@ -6,11 +6,27 @@ self.addEventListener("install", function (e) {
     caches
       .open("magdeburger-spielplatznadel")
       .then(async (cache) => {
+        const frontendLocation = self.performance
+          .getEntriesByType("resource")
+          .filter(
+            (x) =>
+              x instanceof PerformanceResourceTiming &&
+              x.initiatorType == "script" &&
+              x.name.includes("frontend"),
+          )
+          .at(0).name;
+
+        console.log(
+          (frontendLocation = self.performance.getEntriesByType("resource")),
+        );
+
         console.log("Service Worker will cache now");
+        console.log("frontend is at frontendLocation");
         const cacheList = [
           "/",
           "/manifest.json",
           // "/elm.js", // not needed?
+          // "/frontend.e3jhrsqq.js",
           "/assets/Itim-Regular.ttf",
           "/assets/css/app.css",
           "/assets/images/logo.svg",
@@ -32,7 +48,7 @@ self.addEventListener("install", function (e) {
           "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
           "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
           "https://fonts.googleapis.com/css?family=Itim",
-          "/frontend.e3jhrsqq.js",
+          frontendLocation,
         ];
         for (const addr of cacheList) {
           console.log("caching", addr);
@@ -48,10 +64,10 @@ self.addEventListener("fetch", function (event) {
   event.respondWith(
     caches.match(event.request).then((response) => {
       if (response) {
-        console.log("fetch from catche", response);
+        console.log("[fetch from cache]", response.url);
         return response;
       } else {
-        console.log("fetch from web", response);
+        console.log("(fetch from web)", event.request.url);
         return fetch(event.request);
       }
     }),
