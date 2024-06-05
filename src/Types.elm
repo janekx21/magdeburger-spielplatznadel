@@ -5,12 +5,16 @@ import Browser.Navigation as Nav
 import Url exposing (Url)
 
 
+
+-- Models
+
+
 type alias FrontendModel =
     { key : Nav.Key
     , route : Route
-    , capture : String
-    , message : String
     , online : Bool
+    , playgrounds : List Playground
+    , myLocation : Maybe Location
     }
 
 
@@ -19,6 +23,24 @@ type Route
     | PlaygroundRoute String
     | AwardsRoute
     | NewAwardRoute String
+    | AdminRoute
+
+
+type alias Playground =
+    { id : Guid
+    , title : String
+    , location : Location
+    }
+
+
+type alias Location =
+    { lat : Float
+    , lng : Float
+    }
+
+
+type alias Guid =
+    String
 
 
 type alias BackendModel =
@@ -26,11 +48,13 @@ type alias BackendModel =
     }
 
 
+
+-- Msg's
+
+
 type FrontendMsg
     = UrlClicked UrlRequest
     | UrlChanged Url
-    | Capture String
-    | CreateCapture
     | Online Bool
     | ReplaceUrl String
     | NoOpFrontendMsg

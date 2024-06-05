@@ -1,7 +1,10 @@
 class MyCustomElement extends HTMLElement {
-  static observedAttributes = ["lat-lng"];
+  static observedAttributes = ["lat-lng", "markers"];
   map = null;
   latLng = [0, 0];
+  markers = [];
+
+  playgroundIcon = null;
 
   constructor() {
     // Always call super first in constructor
@@ -17,23 +20,15 @@ class MyCustomElement extends HTMLElement {
     this.map = L.map(this, {
       zoomControl: false,
       attributionControl: false,
-    }).setView(this.latLng, 12);
+    }).setView([this.latLng.lat, this.latLng.lng], 12);
 
-    var myIcon = L.icon({
-      iconUrl: "/assets/images/playground_icon_1.png",
-      iconSize: [50, 49],
-      iconAnchor: [25, 49],
-      popupAnchor: [-12, -30],
-      shadowUrl: "/assets/images/playground_icon_1_shadow.png",
-      shadowSize: [50, 49],
-      shadowAnchor: [25, 49],
-    });
 
     // https://wiki.openstreetmap.org/wiki/Raster_tile_providers
+    // const adress =
+    //   "https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg";
     const adress =
-      "https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg";
+      "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     // https://tile.openstreetmap.org
-    // "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
     L.tileLayer(adress, {
       // {r}
       // attribution:
@@ -43,10 +38,23 @@ class MyCustomElement extends HTMLElement {
       detectRetina: false,
     }).addTo(this.map);
 
-    L.marker([52.131667, 11.639167], { icon: myIcon })
-      .addTo(this.map)
-      .bindPopup("Spielplatz Alter Markt<br>Platzhalter");
-    // .openPopup();
+    this.playgroundIcon = L.icon({
+      iconUrl: "/assets/images/playground_icon_1.png",
+      iconSize: [50, 49],
+      iconAnchor: [25, 49],
+      popupAnchor: [-12, -30],
+      shadowUrl: "/assets/images/playground_icon_1_shadow.png",
+      shadowSize: [50, 49],
+      shadowAnchor: [25, 49],
+    });
+
+    console.log(this.markers)
+    for (const marker of this.markers) {
+      L.marker([marker.lat, marker.lng], { icon: this.playgroundIcon })
+          .addTo(this.map)
+          .bindPopup("Spielplatz Alter Markt<br>Platzhalter");
+      // .openPopup();
+    }
   }
 
   disconnectedCallback() {
@@ -58,13 +66,17 @@ class MyCustomElement extends HTMLElement {
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
-    // console.log(`Attribute ${name} has changed to ${newValue}`);
     switch (name) {
       case "lat-lng":
-        const latLng = newValue.split(",").map((x) => Number(x));
-        this.latLng = latLng;
+        this.latLng = JSON.parse(newValue);
         if (this.map != null) {
-          this.map.setView(latLng, 13);
+          this.map.setView([this.latLng.lat, this.latLng.lng], 13);
+        }
+        break;
+      case "markers":
+        this.markers = JSON.parse(newValue);
+        if (this.map != null) {
+          //this.map.setView(latLng, 13);
         }
         break;
     }

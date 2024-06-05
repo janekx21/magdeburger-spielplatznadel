@@ -9,13 +9,16 @@ import Element.Font as Font
 import Element.Input as Input
 import Html
 import Html.Attributes
-import Html.Keyed
+import Json.Encode as E
 import Lamdera
 import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
+import Svg exposing (svg)
+import Svg.Attributes
 import Types exposing (..)
 import Url
 import Url.Parser as UP exposing ((</>), Parser, int, oneOf, s, string)
+import VirtualDom
 
 
 type alias Model =
@@ -44,9 +47,27 @@ init url key =
         route =
             parseUrl url
     in
-    ( FrontendModel key route "" "" True
+    ( { key = key
+      , route = route
+      , online = True
+      , myLocation = Just { lat = 52.1, lng = 11.6 }
+      , playgrounds =
+            [ { title = "Spielplatz"
+              , location = { lat = 52.13078, lng = 11.65262 }
+              , id = "1234567"
+              }
+            , { title = "Spielplatz Schellheimer Platz"
+              , location = { lat = 52.126787, lng = 11.608743 }
+              , id = "foobar"
+              }
+            ]
+      }
     , Cmd.none
     )
+
+
+magdeburg =
+    { lat = 52.131667, lng = 11.639167 }
 
 
 parseUrl url =
@@ -70,6 +91,9 @@ routeParser =
 update : FrontendMsg -> Model -> ( Model, Cmd FrontendMsg )
 update msg model =
     case msg of
+        NoOpFrontendMsg ->
+            ( model, Cmd.none )
+
         UrlClicked urlRequest ->
             case urlRequest of
                 Internal url ->
@@ -85,20 +109,11 @@ update msg model =
         UrlChanged url ->
             ( { model | route = parseUrl url }, Cmd.none )
 
-        NoOpFrontendMsg ->
-            ( model, Cmd.none )
-
-        Capture text ->
-            ( { model | capture = text }, Cmd.none )
-
-        CreateCapture ->
-            ( model, saveCapture model.online model.capture )
+        ReplaceUrl url ->
+            ( model, Nav.replaceUrl model.key url )
 
         Online status ->
             ( { model | online = status }, Cmd.none )
-
-        ReplaceUrl url ->
-            ( model, Nav.replaceUrl model.key url )
 
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
@@ -128,6 +143,9 @@ view model =
 
                 NewAwardRoute guid ->
                     viewNewAwardRoute model
+
+                AdminRoute ->
+                    Debug.todo "admin route"
     in
     { title = ""
     , body =
@@ -159,6 +177,7 @@ view model =
     }
 
 
+viewMainRoute : Model -> Html.Html msg
 viewMainRoute model =
     layout
         [ width fill
@@ -175,16 +194,10 @@ viewMainRoute model =
                 , linePlaceholder 4
                 , linePlaceholder 12
                 ]
-            , map
+            , map model.myLocation (List.map .location model.playgrounds)
             , column
                 [ spacing 16, width fill ]
-                [ playgroundItemPlaceholder 3
-                , playgroundItemPlaceholder 4.2
-                , playgroundItemPlaceholder 4.5
-                , playgroundItemPlaceholder 7.2
-                , playgroundItemPlaceholder 7.9
-                , playgroundItemPlaceholder 12
-                ]
+                (model.playgrounds |> List.map (playgroundItem model.myLocation))
             , column
                 [ spacing 16, width fill ]
                 [ el [ Font.bold ] <| text "debuggin menu"
@@ -342,7 +355,7 @@ mapPlaceholder =
             text "map"
 
 
-map =
+map location marker =
     el
         [ width fill
         , square
@@ -351,26 +364,26 @@ map =
         , style "overflow" "hidden"
         ]
     <|
-        leafletMap { position = ( 52.131667, 11.639167 ) }
+        leafletMap { location = location |> Maybe.withDefault magdeburg, markers = marker }
 
 
 type alias LeafletMapConfig =
-    { position : ( Float, Float )
+    { location : Location
+    , markers : List Location
     }
 
 
 leafletMap : LeafletMapConfig -> Element msg
-leafletMap { position } =
-    let
-        ( lat, lng ) =
-            position
-    in
-    html <|
-        Html.node "leaflet-map"
-            [ Html.Attributes.attribute "lat-lng" (String.fromFloat lat ++ "," ++ String.fromFloat lng)
-            , Html.Attributes.style "height" "100%"
-            ]
-            []
+leafletMap { location, markers } =
+    el [ behindContent <| el [ Background.image "/assets/images/map_background.jpg", width fill, height fill ] none, height fill, width fill ] <|
+        html <|
+            Html.node "leaflet-map"
+                [ Html.Attributes.attribute "lat-lng" (E.encode 0 (encodePosition location))
+                , Html.Attributes.style "height" "100%"
+                , Html.Attributes.style "background" "transparent"
+                , Html.Attributes.attribute "markers" (E.encode 0 (encodeMarkers markers))
+                ]
+                []
 
 
 mapCollapsed =
@@ -382,7 +395,7 @@ mapCollapsed =
         , style "overflow" "hidden"
         ]
     <|
-        leafletMap { position = ( 50, 11 ) }
+        leafletMap { location = magdeburg, markers = [ magdeburg ] }
 
 
 playgroundItemPlaceholder km =
@@ -402,6 +415,39 @@ playgroundItemPlaceholder km =
                         (String.fromFloat km ++ "km")
                 ]
         , url = "/playground/placeholder"
+        }
+
+
+playgroundItem : Maybe Location -> Playground -> Element msg
+playgroundItem location playground =
+    let
+        viewDistance loc =
+            let
+                km =
+                    locationDistanceInKilometers loc playground.location
+
+                kmString =
+                    toFloat (round (km * 100)) / 100 |> String.fromFloat
+            in
+            el [ alignRight, itim, Font.size 24 ] <|
+                text <|
+                    (kmString ++ "km")
+    in
+    link
+        [ Border.rounded 16
+        , Background.color secondary
+        , width fill
+        , height (px 64)
+        , paddingXY 24 0
+        ]
+    <|
+        { label =
+            row [ centerY, width fill, Font.color secondaryDark, spacing 8 ]
+                [ icon Icons.local_play
+                , textTruncated playground.title
+                , location |> Maybe.map viewDistance |> Maybe.withDefault none
+                ]
+        , url = "/playground/" ++ playground.id
         }
 
 
@@ -495,8 +541,32 @@ replacingLink attr { url, label } =
 -- Utility
 
 
+encodeMarkers : List Location -> E.Value
+encodeMarkers locations =
+    E.list encodePosition locations
+
+
+encodePosition : Location -> E.Value
+encodePosition location =
+    E.object
+        [ ( "lat", E.float location.lat )
+        , ( "lng", E.float location.lng )
+        ]
+
+
 square =
     aspect 1 1
+
+
+textTruncated label =
+    el
+        [ style "white-space" "nowrap"
+        , style "overflow" "hidden"
+        , style "text-overflow" "ellipsis"
+        , style "flex-grow" "9999"
+        ]
+    <|
+        text label
 
 
 aspect a b =
@@ -519,7 +589,51 @@ style key value =
     htmlAttribute <| Html.Attributes.style key value
 
 
+earthRadiusInKilometers : Float
+earthRadiusInKilometers =
+    6371.0
 
+
+{-| Calculate the Haversine distance between two locations
+-}
+locationDistanceInKilometers : Location -> Location -> Float
+locationDistanceInKilometers loc1 loc2 =
+    let
+        lat1 =
+            degrees loc1.lat
+
+        lng1 =
+            degrees loc1.lng
+
+        lat2 =
+            degrees loc2.lat
+
+        lng2 =
+            degrees loc2.lng
+
+        dLat =
+            lat2 - lat1
+
+        dLng =
+            lng2 - lng1
+
+        -- Haversine Formula
+        a =
+            sin (dLat / 2)
+                ^ 2
+                + cos lat1
+                * cos lat2
+                * sin (dLng / 2)
+                ^ 2
+
+        c =
+            2 * atan2 (sqrt a) (sqrt (1 - a))
+    in
+    earthRadiusInKilometers * c
+
+
+
+-- 4.96km
 -- Theme
 -- gray ligth
 --    rgb255 224 231 236
