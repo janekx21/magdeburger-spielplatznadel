@@ -5,6 +5,7 @@ import Browser.Navigation as Nav
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
+import Element.Events
 import Element.Font as Font
 import Element.Input as Input
 import Html
@@ -122,7 +123,13 @@ update msg model =
                     )
 
         UrlChanged url ->
-            ( { model | route = parseUrl url }, Cmd.none )
+            case model.modal of
+                Nothing ->
+                    ( { model | route = parseUrl url }, Cmd.none )
+
+                Just _ ->
+                    -- any url change just closes the modal
+                    ( { model | modal = Nothing }, Cmd.none )
 
         ReplaceUrl url ->
             ( model, Nav.replaceUrl model.key url )
@@ -189,22 +196,51 @@ view model =
 
 
 viewImageModal i =
+    let
+        close =
+            Input.button [] <|
+                { label = iconSized Icons.close 48
+                , onPress = Just <| CloseModal
+                }
+
+        imageLink =
+            link [] <|
+                { label = iconSized Icons.image 48
+                , url = i.url
+                }
+
+        closingTrigger =
+            el
+                [ height fill
+                , width fill
+                , Element.Events.onClick <| CloseModal
+                ]
+            <|
+                none
+    in
     layout
         [ width fill
         , height fill
         , inFront <|
             el [ alignBottom, alignRight, padding 32 ] <|
-                closeButton
+                lifted <|
+                    row [ spacing 8 ]
+                        [ imageLink, close ]
         , Background.image "/assets/images/map_background.jpg"
         ]
     <|
-        image
-            [ width fill
-            , centerY
-            , Border.rounded 16
-            , style "overflow" "hidden"
+        column [ height fill, width fill, padding 8 ]
+            [ closingTrigger
+            , image
+                [ width fill
+                , centerY
+                , Border.rounded 16
+                , style "overflow" "hidden"
+                , Element.Events.onClick <| NoOpFrontendMsg
+                ]
+                { src = i.url, description = i.description }
+            , closingTrigger
             ]
-            { src = i.url, description = i.description }
 
 
 viewMainRoute : Model -> Html.Html msg
@@ -575,6 +611,17 @@ buttonAwards =
             iconSized Icons.approval 48
         , url = "/award"
         }
+
+
+lifted child =
+    el
+        [ Background.color secondaryDark
+        , Border.rounded 999
+        , padding 16
+        , Font.color white
+        , Border.shadow { offset = ( 0, 4 ), size = 0, blur = 18, color = rgba 0 0 0 0.25 }
+        ]
+        child
 
 
 closeButton =
