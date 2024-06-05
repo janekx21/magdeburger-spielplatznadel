@@ -145,7 +145,7 @@ view model =
                     viewNewAwardRoute model
 
                 AdminRoute ->
-                    Debug.todo "admin route"
+                    Html.text "todo"
     in
     { title = ""
     , body =
