@@ -18,7 +18,6 @@ import Svg.Attributes
 import Types exposing (..)
 import Url
 import Url.Parser as UP exposing ((</>), Parser, int, oneOf, s, string)
-import VirtualDom
 
 
 type alias Model =
@@ -51,14 +50,30 @@ init url key =
       , route = route
       , online = True
       , myLocation = Just { lat = 52.1, lng = 11.6 }
+      , modal = Nothing
       , playgrounds =
             [ { title = "Spielplatz"
               , location = { lat = 52.13078, lng = 11.65262 }
               , id = "1234567"
+              , images = []
               }
             , { title = "Spielplatz Schellheimer Platz"
               , location = { lat = 52.126787, lng = 11.608743 }
               , id = "foobar"
+              , images =
+                    [ { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
+                      , description = "Mittelstelle"
+                      }
+                    , { url = "https://bilder.spielplatztreff.de/spielplatzbild/spielplatz-schellheimerplatz-in-magdeburg_1410435124572.jpg"
+                      , description = "Mittelstelle"
+                      }
+                    , { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
+                      , description = "Mittelstelle"
+                      }
+                    , { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
+                      , description = "Mittelstelle"
+                      }
+                    ]
               }
             ]
       }
@@ -115,6 +130,12 @@ update msg model =
         Online status ->
             ( { model | online = status }, Cmd.none )
 
+        OpenImageModal image ->
+            ( { model | modal = Just <| ImageModal image }, Cmd.none )
+
+        CloseModal ->
+            ( { model | modal = Nothing }, Cmd.none )
+
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
 updateFromBackend msg model =
@@ -155,8 +176,35 @@ view model =
 
                 AdminRoute ->
                     Html.text "todo"
+
+        body =
+            case model.modal of
+                Nothing ->
+                    viewRoute model.route
+
+                Just (ImageModal image) ->
+                    viewImageModal image
     in
-    { title = "", body = [ viewRoute model.route ] }
+    { title = "", body = [ body ] }
+
+
+viewImageModal i =
+    layout
+        [ width fill
+        , height fill
+        , inFront <|
+            el [ alignBottom, alignRight, padding 32 ] <|
+                closeButton
+        , Background.image "/assets/images/map_background.jpg"
+        ]
+    <|
+        image
+            [ width fill
+            , centerY
+            , Border.rounded 16
+            , style "overflow" "hidden"
+            ]
+            { src = i.url, description = i.description }
 
 
 viewMainRoute : Model -> Html.Html msg
@@ -276,7 +324,7 @@ viewNewAwardRoute model =
             ]
 
 
-viewPlaygroundRoute : Model -> Playground -> Html.Html msg
+viewPlaygroundRoute : Model -> Playground -> Html.Html FrontendMsg
 viewPlaygroundRoute model playground =
     let
         title label =
@@ -296,16 +344,19 @@ viewPlaygroundRoute model playground =
                 , linePlaceholder 4
                 , linePlaceholder 20
                 ]
-            , row [ scrollbarX, height (px 140), spacing 16, width fill, style "flex" "none" ]
-                [ placeholderImage
-                , placeholderImage
-                , placeholderImage
-                , placeholderImage
-                , placeholderImage
-                , placeholderImage
-                ]
+            , viewImageStrip playground.images
             , mapCollapsed playground.location
             ]
+
+
+viewImageStrip images =
+    case images of
+        [] ->
+            none
+
+        _ ->
+            row [ scrollbarX, height (px 140), spacing 16, width fill, style "flex" "none" ] <|
+                List.map imagePreview images
 
 
 
@@ -329,6 +380,21 @@ placeholderLarger =
 
 placeholderImage =
     el [ Border.rounded 16, Background.color secondary, width (px 120), height (px 120) ] <| el [ centerX, centerY, Font.color secondaryDark ] <| icon Icons.image
+
+
+noImage =
+    el [ Border.rounded 16, Background.color secondary, width (px 120), height (px 120) ] <| el [ centerX, centerY, Font.color secondaryDark ] <| icon Icons.image_not_supported
+
+
+imagePreview image =
+    Input.button
+        [ Border.rounded 16
+        , Background.color secondary
+        , width (px 120)
+        , height (px 120)
+        , Background.image image.url
+        ]
+        { label = none, onPress = Just <| OpenImageModal image }
 
 
 mapPlaceholder =
@@ -508,6 +574,21 @@ buttonAwards =
         { label =
             iconSized Icons.approval 48
         , url = "/award"
+        }
+
+
+closeButton =
+    Input.button
+        [ Background.color secondaryDark
+        , Border.rounded 999
+        , padding 16
+        , Font.color white
+        , Border.shadow { offset = ( 0, 4 ), size = 0, blur = 18, color = rgba 0 0 0 0.25 }
+        ]
+    <|
+        { label =
+            iconSized Icons.close 48
+        , onPress = Just <| CloseModal
         }
 
 

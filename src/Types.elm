@@ -15,7 +15,12 @@ type alias FrontendModel =
     , online : Bool
     , playgrounds : List Playground
     , myLocation : Maybe Location
+    , modal : Maybe Modal
     }
+
+
+type Modal
+    = ImageModal Image
 
 
 type Route
@@ -30,6 +35,13 @@ type alias Playground =
     { id : Guid
     , title : String
     , location : Location
+    , images : List Image
+    }
+
+
+type alias Image =
+    { url : String
+    , description : String
     }
 
 
@@ -69,6 +81,8 @@ type FrontendMsg
     | UrlChanged Url
     | Online Bool
     | ReplaceUrl String
+    | OpenImageModal Image
+    | CloseModal
     | NoOpFrontendMsg
 
 
