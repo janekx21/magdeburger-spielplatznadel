@@ -139,7 +139,16 @@ view model =
                     viewAwardsRoute model
 
                 PlaygroundRoute guid ->
-                    viewPlaygroundRoute model
+                    let
+                        playground =
+                            model.playgrounds |> List.filter (\p -> p.id == guid) |> List.head
+                    in
+                    case playground of
+                        Just p ->
+                            viewPlaygroundRoute model p
+
+                        Nothing ->
+                            Html.text "404 :<"
 
                 NewAwardRoute guid ->
                     viewNewAwardRoute model
@@ -147,34 +156,7 @@ view model =
                 AdminRoute ->
                     Html.text "todo"
     in
-    { title = ""
-    , body =
-        [ viewRoute model.route
-
-        -- , Html.Lazy.lazy <|
-        --     Html.div
-        --         [ Html.Attributes.style "position" "absolute"
-        --         , Html.Attributes.style "height" "100%"
-        --         , Html.Attributes.style "width" "100%"
-        --         , Html.Attributes.class "old-view"
-        --         ]
-        --         [ case model.oldRoute of
-        --             Nothing ->
-        --                 Html.div [] []
-        --             Just route ->
-        --                 viewRoute route
-        --         ]
-        -- , Html.Lazy.lazy <|
-        --     Html.div
-        --         [ Html.Attributes.style "height" "100%"
-        --         , Html.Attributes.style "width" "100%"
-        --         , Html.Attributes.style "position" "absolute"
-        --         , Html.Attributes.class "new-view"
-        --         ]
-        --         [ viewRoute model.route
-        --         ]
-        ]
-    }
+    { title = "", body = [ viewRoute model.route ] }
 
 
 viewMainRoute : Model -> Html.Html msg
@@ -294,12 +276,19 @@ viewNewAwardRoute model =
             ]
 
 
-viewPlaygroundRoute model =
+viewPlaygroundRoute : Model -> Playground -> Html.Html msg
+viewPlaygroundRoute model playground =
+    let
+        title label =
+            paragraph [ spacing 16 ]
+                [ el [ Font.bold, Font.size 32, Font.color secondaryDark ] <| text label
+                ]
+    in
     layout [ width fill, height fill ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
             , column [ spacing 16, width fill ]
-                [ placeholderLarger
+                [ title playground.title
                 , linePlaceholder 8
                 , linePlaceholder 3
                 , linePlaceholder 7
@@ -315,7 +304,7 @@ viewPlaygroundRoute model =
                 , placeholderImage
                 , placeholderImage
                 ]
-            , mapCollapsed
+            , mapCollapsed playground.location
             ]
 
 
@@ -364,29 +353,16 @@ map location marker =
         , style "overflow" "hidden"
         ]
     <|
-        leafletMap { location = location |> Maybe.withDefault magdeburg, markers = marker }
+        leafletMap
+            { camera =
+                { location = location |> Maybe.withDefault magdeburg
+                , zoom = 12
+                }
+            , markers = marker
+            }
 
 
-type alias LeafletMapConfig =
-    { location : Location
-    , markers : List Location
-    }
-
-
-leafletMap : LeafletMapConfig -> Element msg
-leafletMap { location, markers } =
-    el [ behindContent <| el [ Background.image "/assets/images/map_background.jpg", width fill, height fill ] none, height fill, width fill ] <|
-        html <|
-            Html.node "leaflet-map"
-                [ Html.Attributes.attribute "lat-lng" (E.encode 0 (encodePosition location))
-                , Html.Attributes.style "height" "100%"
-                , Html.Attributes.style "background" "transparent"
-                , Html.Attributes.attribute "markers" (E.encode 0 (encodeMarkers markers))
-                ]
-                []
-
-
-mapCollapsed =
+mapCollapsed location =
     el
         [ width fill
         , aspect 7 4
@@ -395,7 +371,19 @@ mapCollapsed =
         , style "overflow" "hidden"
         ]
     <|
-        leafletMap { location = magdeburg, markers = [ magdeburg ] }
+        leafletMap { camera = { location = location, zoom = 14 }, markers = [ location ] }
+
+
+leafletMap : LeafletMapConfig -> Element msg
+leafletMap config =
+    el [ behindContent <| el [ Background.image "/assets/images/map_background.jpg", width fill, height fill ] none, height fill, width fill ] <|
+        html <|
+            Html.node "leaflet-map"
+                [ Html.Attributes.attribute "data" (E.encode 0 (encodeLeafletMapConfig config))
+                , Html.Attributes.style "height" "100%"
+                , Html.Attributes.style "background" "transparent"
+                ]
+                []
 
 
 playgroundItemPlaceholder km =
@@ -541,13 +529,29 @@ replacingLink attr { url, label } =
 -- Utility
 
 
+encodeLeafletMapConfig : LeafletMapConfig -> E.Value
+encodeLeafletMapConfig value =
+    E.object
+        [ ( "camera", encodeCamera value.camera )
+        , ( "markers", encodeMarkers value.markers )
+        ]
+
+
+encodeCamera : Camera -> E.Value
+encodeCamera value =
+    E.object
+        [ ( "zoom", E.int value.zoom )
+        , ( "location", encodeLocation value.location )
+        ]
+
+
 encodeMarkers : List Location -> E.Value
 encodeMarkers locations =
-    E.list encodePosition locations
+    E.list encodeLocation locations
 
 
-encodePosition : Location -> E.Value
-encodePosition location =
+encodeLocation : Location -> E.Value
+encodeLocation location =
     E.object
         [ ( "lat", E.float location.lat )
         , ( "lng", E.float location.lng )

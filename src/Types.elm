@@ -33,6 +33,18 @@ type alias Playground =
     }
 
 
+type alias LeafletMapConfig =
+    { camera : Camera
+    , markers : List Location
+    }
+
+
+type alias Camera =
+    { location : Location
+    , zoom : Int
+    }
+
+
 type alias Location =
     { lat : Float
     , lng : Float

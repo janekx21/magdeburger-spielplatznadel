@@ -1,9 +1,7 @@
 class MyCustomElement extends HTMLElement {
-  static observedAttributes = ["lat-lng", "markers"];
+  static observedAttributes = ["data"];
   map = null;
-  latLng = [0, 0];
-  markers = [];
-
+  data = null;
   playgroundIcon = null;
 
   constructor() {
@@ -16,11 +14,12 @@ class MyCustomElement extends HTMLElement {
     // console.log(`Map elment added to page with ${this.latLng}`);
 
     //const container = document.createElement("div");
+    console.log(this.data)
 
     this.map = L.map(this, {
       zoomControl: false,
       attributionControl: false,
-    }).setView([this.latLng.lat, this.latLng.lng], 12);
+    }).setView([this.data.camera.location.lat, this.data.camera.location.lng], this.data.camera.zoom);
 
 
     // https://wiki.openstreetmap.org/wiki/Raster_tile_providers
@@ -49,7 +48,7 @@ class MyCustomElement extends HTMLElement {
     });
 
     console.log(this.markers)
-    for (const marker of this.markers) {
+    for (const marker of this.data.markers) {
       L.marker([marker.lat, marker.lng], { icon: this.playgroundIcon })
           .addTo(this.map)
           .bindPopup("Spielplatz Alter Markt<br>Platzhalter");
@@ -66,19 +65,9 @@ class MyCustomElement extends HTMLElement {
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
-    switch (name) {
-      case "lat-lng":
-        this.latLng = JSON.parse(newValue);
-        if (this.map != null) {
-          this.map.setView([this.latLng.lat, this.latLng.lng], 13);
-        }
-        break;
-      case "markers":
-        this.markers = JSON.parse(newValue);
-        if (this.map != null) {
-          //this.map.setView(latLng, 13);
-        }
-        break;
+    this.data = JSON.parse(newValue);
+    if (this.map) {
+      this.map.setView([this.data.camera.lat, this.data.camera.lng], this.data.camera.zoom);
     }
   }
 }
