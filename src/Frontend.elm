@@ -13,13 +13,12 @@ import Html
 import Html.Attributes
 import Json.Encode as E
 import Lamdera
-import Lamdera.Debug
 import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
-import Svg exposing (svg)
-import Svg.Attributes
+import Random
 import Time
 import Types exposing (..)
+import UUID exposing (Seeds)
 import Url
 import Url.Parser as UP exposing ((</>), Parser, int, oneOf, s, string)
 
@@ -55,15 +54,16 @@ init url key =
       , online = True
       , myLocation = Just { lat = 52.1, lng = 11.6 }
       , modal = Nothing
+      , seeds = UUID.Seeds (Random.initialSeed 1) (Random.initialSeed 2) (Random.initialSeed 3) (Random.initialSeed 4)
       , playgrounds =
             [ { title = "Spielplatz"
               , description = "Dinosaurier Spielplatz am Werder"
               , location = { lat = 52.13078, lng = 11.65262 }
-              , id = "1234567"
+              , id = "525e1b45-6323-44a0-a7ce-981c3965a735"
               , images = []
               , awards =
                     [ { title = "Dino"
-                      , id = "abc"
+                      , id = "4a98c645-4784-4a6f-b27d-6620d6c1c1eb"
                       , found = Just <| Time.millisToPosix 0
                       , image =
                             { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
@@ -71,7 +71,7 @@ init url key =
                             }
                       }
                     , { title = "Dino 2"
-                      , id = "abcd"
+                      , id = "21f2cd1e-a7f8-46be-8129-358e9c4d3c49"
                       , found = Nothing
                       , image =
                             { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
@@ -83,7 +83,7 @@ init url key =
             , { title = "Spielplatz Schellheimer Platz"
               , description = "Der große Schelli Spielplatz in mitten von Stadtfeld ist mit vielen kleinen Spielsachen bestückt."
               , location = { lat = 52.126787, lng = 11.608743 }
-              , id = "foobar"
+              , id = "38c8d8ed-ad9d-48ca-8d8e-ce37abebdcab"
               , images =
                     [ { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
                       , description = "Mittelstelle"
@@ -103,7 +103,7 @@ init url key =
             , { title = "Placeholder"
               , description = "Lorem Ipsum"
               , location = { lat = 52.11, lng = 11.61 }
-              , id = "foobaroderso"
+              , id = "250413dd-ee7c-4889-a1d7-5d4fc9d5c558"
               , images =
                     [ { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
                       , description = "Mittelstelle"
@@ -114,7 +114,7 @@ init url key =
                     ]
               , awards =
                     [ { title = "Dino 3"
-                      , id = "abcde"
+                      , id = "93ff3df5-970c-4a7b-8064-57904e4c3003"
                       , found = Nothing
                       , image =
                             { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
@@ -198,24 +198,50 @@ update msg model =
             ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, Cmd.none )
 
         AddPlayground ->
+            let
+                ( playground, seeds ) =
+                    initPlayground model.seeds
+            in
             ( { model
                 | playgrounds =
                     model.playgrounds
-                        ++ [ initPlayground ]
+                        ++ [ playground ]
+                , seeds = seeds
               }
-            , Nav.pushUrl model.key <| "/admin/playground/" ++ initPlayground.id
+            , Nav.pushUrl model.key <| "/admin/playground/" ++ playground.id
+            )
+
+        AddAward playground ->
+            let
+                ( award, seeds ) =
+                    initAward model.seeds
+
+                p2 =
+                    { playground | awards = playground.awards |> updateListItemViaId award }
+            in
+            ( { model
+                | playgrounds = model.playgrounds |> updateListItemViaId p2
+                , seeds = seeds
+              }
+            , Cmd.none
             )
 
 
-initPlayground : Playground
-initPlayground =
-    { id = "generate-id"
-    , awards = []
-    , location = magdeburg
-    , description = ""
-    , title = ""
-    , images = []
-    }
+initPlayground : Seeds -> ( Playground, Seeds )
+initPlayground s1 =
+    let
+        ( id, seeds ) =
+            generateGuid s1
+    in
+    ( { id = id
+      , awards = []
+      , location = magdeburg
+      , description = ""
+      , title = ""
+      , images = []
+      }
+    , seeds
+    )
 
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
@@ -540,7 +566,7 @@ viewPlaygroundAdminRoute model playground =
                 , paddingXY 24 0
                 , Font.color secondaryDark
                 ]
-                { onPress = Just <| UpdatePlayground { playground | awards = playground.awards ++ [ initAward ] }
+                { onPress = Just <| AddAward playground
                 , label = row [ centerX, centerY, spacing 8 ] [ icon Icons.add, icon Icons.approval ]
                 }
 
@@ -577,16 +603,22 @@ viewPlaygroundAdminRoute model playground =
             ]
 
 
-initAward : Award
-initAward =
-    { title = ""
-    , id = "generated-id"
-    , image =
-        { url = ""
-        , description = ""
-        }
-    , found = Nothing
-    }
+initAward : Seeds -> ( Award, Seeds )
+initAward s1 =
+    let
+        ( id, s2 ) =
+            generateGuid s1
+    in
+    ( { title = ""
+      , id = id
+      , image =
+            { url = ""
+            , description = ""
+            }
+      , found = Nothing
+      }
+    , s2
+    )
 
 
 cuteInput label text_ msg =
@@ -1114,6 +1146,12 @@ locationDistanceInKilometers loc1 loc2 =
             2 * atan2 (sqrt a) (sqrt (1 - a))
     in
     earthRadiusInKilometers * c
+
+
+generateGuid : UUID.Seeds -> ( Guid, UUID.Seeds )
+generateGuid seeds =
+    UUID.step seeds
+        |> Tuple.mapFirst (UUID.toRepresentation UUID.Compact)
 
 
 

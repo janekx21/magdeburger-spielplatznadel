@@ -3,6 +3,7 @@ module Types exposing (..)
 import Browser exposing (UrlRequest)
 import Browser.Navigation as Nav
 import Time exposing (Posix)
+import UUID
 import Url exposing (Url)
 
 
@@ -17,6 +18,7 @@ type alias FrontendModel =
     , playgrounds : List Playground
     , myLocation : Maybe Location
     , modal : Maybe Modal
+    , seeds : UUID.Seeds
     }
 
 
@@ -100,6 +102,7 @@ type FrontendMsg
     | CloseModal
     | NoOpFrontendMsg
     | UpdatePlayground Playground
+    | AddAward Playground
     | AddPlayground
 
 
