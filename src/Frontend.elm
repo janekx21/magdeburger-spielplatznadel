@@ -12,10 +12,12 @@ import Html
 import Html.Attributes
 import Json.Encode as E
 import Lamdera
+import Lamdera.Debug
 import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
 import Svg exposing (svg)
 import Svg.Attributes
+import Time
 import Types exposing (..)
 import Url
 import Url.Parser as UP exposing ((</>), Parser, int, oneOf, s, string)
@@ -54,11 +56,31 @@ init url key =
       , modal = Nothing
       , playgrounds =
             [ { title = "Spielplatz"
+              , description = "Dinosaurier Spielplatz am Werder"
               , location = { lat = 52.13078, lng = 11.65262 }
               , id = "1234567"
               , images = []
+              , awards =
+                    [ { title = "Dino"
+                      , id = "abc"
+                      , found = Just <| Time.millisToPosix 0
+                      , image =
+                            { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
+                            , description = "Dino Stempel"
+                            }
+                      }
+                    , { title = "Dino 2"
+                      , id = "abcd"
+                      , found = Nothing
+                      , image =
+                            { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
+                            , description = "Dino Stempel"
+                            }
+                      }
+                    ]
               }
             , { title = "Spielplatz Schellheimer Platz"
+              , description = "Der große Schelli Spielplatz in mitten von Stadtfeld ist mit vielen kleinen Spielsachen bestückt."
               , location = { lat = 52.126787, lng = 11.608743 }
               , id = "foobar"
               , images =
@@ -73,6 +95,30 @@ init url key =
                       }
                     , { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
                       , description = "Mittelstelle"
+                      }
+                    ]
+              , awards = []
+              }
+            , { title = "Placeholder"
+              , description = "Lorem Ipsum"
+              , location = { lat = 52.11, lng = 11.61 }
+              , id = "foobaroderso"
+              , images =
+                    [ { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
+                      , description = "Mittelstelle"
+                      }
+                    , { url = "https://bilder.spielplatztreff.de/spielplatzbild/spielplatz-schellheimerplatz-in-magdeburg_1410435124572.jpg"
+                      , description = "Mittelstelle"
+                      }
+                    ]
+              , awards =
+                    [ { title = "Dino 3"
+                      , id = "abcde"
+                      , found = Nothing
+                      , image =
+                            { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
+                            , description = "Dino Stempel"
+                            }
                       }
                     ]
               }
@@ -128,8 +174,10 @@ update msg model =
                     ( { model | route = parseUrl url }, Cmd.none )
 
                 Just _ ->
-                    -- any url change just closes the modal
-                    ( { model | modal = Nothing }, Cmd.none )
+                    -- any url change just closes the modal, the forward cancels out the back navigation
+                    -- TODO what about url changes that do not come from back navigation
+                    -- maybe do a route for modals?
+                    ( { model | modal = Nothing }, Nav.forward model.key 1 )
 
         ReplaceUrl url ->
             ( model, Nav.replaceUrl model.key url )
@@ -245,6 +293,15 @@ viewImageModal i =
 
 viewMainRoute : Model -> Html.Html msg
 viewMainRoute model =
+    let
+        playgrounds =
+            case model.myLocation of
+                Just loc ->
+                    model.playgrounds |> List.sortBy (\p -> locationDistanceInKilometers p.location loc)
+
+                Nothing ->
+                    model.playgrounds
+    in
     layout
         [ width fill
         , height fill
@@ -254,16 +311,14 @@ viewMainRoute model =
         ]
     <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
-            [ column [ spacing 16, width fill ]
-                [ placeholderLarger
-                , linePlaceholder 8
-                , linePlaceholder 4
-                , linePlaceholder 12
+            [ column [ spacing 24, width fill ]
+                [ viewTitle "Magdeburger Spielplatznadel"
+                , viewParapraph "Fangt jetzt an Stempel zu sammeln und schaut wie viel ihr bekommen könnt."
                 ]
-            , map model.myLocation (List.map .location model.playgrounds)
+            , map model.myLocation (List.map .location playgrounds)
             , column
                 [ spacing 16, width fill ]
-                (model.playgrounds |> List.map (playgroundItem model.myLocation))
+                (playgrounds |> List.map (playgroundItem model.myLocation))
             , column
                 [ spacing 16, width fill ]
                 [ el [ Font.bold ] <| text "debuggin menu"
@@ -292,28 +347,33 @@ viewAwardsRoute model =
 
         dot =
             el [ width (px 12), height (px 12), Background.color secondaryDark, Border.rounded 999 ] <| none
+
+        allAwards =
+            model.playgrounds |> List.concatMap .awards
     in
     layout [ width fill, height fill, behindContent <| el [ height fill, width (px 24), padding 8 ] <| column [ centerX, height fill ] <| (List.repeat 12 dot |> List.intersperse bound) ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
-            [ column [ spacing 16, width fill ]
-                [ placeholderLarger
-                , linePlaceholder 18
+            [ column [ spacing 24, width fill ]
+                [ viewTitle "Stempelbuch"
+                , viewParapraph "Hier findest du alle eingetragenen und austehenden Stempel."
                 ]
-            , row
-                [ width fill, style "flex-wrap" "wrap", style "gap" "32px", justifyCenter ]
-                [ awardPlaceholder True 3 -9 True
-                , awardPlaceholder False 12 -4 False
-                , awardPlaceholder True -1 16 False
-                , awardPlaceholder True -8 1 False
-                , awardPlaceholder False 7 9 False
-                , awardPlaceholder True -8 4 False
-                , awardPlaceholder True -5 9 False
-                , awardPlaceholder False 1 -4 False
-                , awardPlaceholder True 12 -16 False
-                , awardPlaceholder True -3 12 False
-                , awardPlaceholder False -7 2 False
-                ]
+            , viewAwardList allAwards
             ]
+
+
+viewAwardList awards =
+    let
+        ( offX, offY ) =
+            ( 12, 12 )
+    in
+    if List.isEmpty awards then
+        row [ Font.color secondaryDark, spacing 8 ] [ text "Hier gibt es keine Stempel", icon Icons.sentiment_dissatisfied ]
+
+    else
+        row
+            [ width fill, style "flex-wrap" "wrap", style "gap" "32px", justifyCenter ]
+        <|
+            List.map (viewAward offX offY) awards
 
 
 viewNewAwardRoute model =
@@ -362,27 +422,27 @@ viewNewAwardRoute model =
 
 viewPlaygroundRoute : Model -> Playground -> Html.Html FrontendMsg
 viewPlaygroundRoute model playground =
-    let
-        title label =
-            paragraph [ spacing 16 ]
-                [ el [ Font.bold, Font.size 32, Font.color secondaryDark ] <| text label
-                ]
-    in
     layout [ width fill, height fill ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
-            , column [ spacing 16, width fill ]
-                [ title playground.title
-                , linePlaceholder 8
-                , linePlaceholder 3
-                , linePlaceholder 7
-                , linePlaceholder 2
-                , linePlaceholder 4
-                , linePlaceholder 20
+            , column [ spacing 32, width fill ]
+                [ viewTitle playground.title
+                , viewParapraph playground.description
                 ]
             , viewImageStrip playground.images
+            , column [ spacing 16, width fill ] [ viewAwardList playground.awards ]
             , mapCollapsed playground.location
             ]
+
+
+viewTitle label =
+    paragraph [ spacing 16 ]
+        [ el [ Font.bold, Font.size 32, Font.color secondaryDark ] <| text label
+        ]
+
+
+viewParapraph label =
+    paragraph [ spacing 8, Font.color secondaryDark ] [ text label ]
 
 
 viewImageStrip images =
@@ -533,7 +593,7 @@ playgroundItem location playground =
     <|
         { label =
             row [ centerY, width fill, Font.color secondaryDark, spacing 8 ]
-                [ icon Icons.local_play
+                [ icon Icons.toys
                 , textTruncated playground.title
                 , location |> Maybe.map viewDistance |> Maybe.withDefault none
                 ]
@@ -598,6 +658,60 @@ awardPlaceholder got offX offY new =
         none
 
 
+viewAward : Float -> Float -> Award -> Element msg
+viewAward offX offY award =
+    let
+        new =
+            False
+
+        got =
+            not <| award.found == Nothing
+
+        awardEl =
+            el
+                [ width fill
+                , height fill
+                , Border.color secondaryDark
+                , Border.width 8
+                , Border.rounded 999
+                , Background.color secondary
+                , moveRight offX
+                , moveDown offY
+                , scale 1.1
+                , inFront <| displayIf new newBatch
+                ]
+            <|
+                emptyEl [ Background.image award.image.url, width fill, height fill, Border.rounded 9999 ]
+
+        newBatch =
+            el
+                [ alignRight
+                , alignBottom
+                , Background.color white
+                , Font.color secondaryDark
+                , paddingXY 12 8
+                , Border.rounded 999
+                , Border.color accent
+                , Border.width 8
+                , moveRight 16
+                , moveDown 16
+                , rotate -0.3
+                ]
+            <|
+                text "neu!"
+    in
+    emptyEl
+        [ Border.rounded 999
+        , width <| px 130
+        , height <| px 130
+        , Border.color secondary
+        , Border.width 8
+        , Border.dashed
+        , inFront <| el [ centerY, centerX, itim, Font.color secondary ] <| text award.title
+        , inFront <| displayIf got awardEl
+        ]
+
+
 buttonAwards =
     link
         [ Background.color secondaryDark
@@ -651,6 +765,18 @@ iconSized icon_ size =
 
 replacingLink attr { url, label } =
     Input.button attr { onPress = Just <| ReplaceUrl url, label = label }
+
+
+emptyEl attr =
+    el attr <| none
+
+
+displayIf boolean element =
+    if boolean then
+        element
+
+    else
+        none
 
 
 

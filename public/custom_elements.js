@@ -47,7 +47,6 @@ class MyCustomElement extends HTMLElement {
       shadowAnchor: [25, 49],
     });
 
-    console.log(this.markers)
     for (const marker of this.data.markers) {
       L.marker([marker.lat, marker.lng], { icon: this.playgroundIcon })
           .addTo(this.map)

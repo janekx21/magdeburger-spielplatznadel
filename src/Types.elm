@@ -2,6 +2,7 @@ module Types exposing (..)
 
 import Browser exposing (UrlRequest)
 import Browser.Navigation as Nav
+import Time exposing (Posix)
 import Url exposing (Url)
 
 
@@ -34,14 +35,27 @@ type Route
 type alias Playground =
     { id : Guid
     , title : String
+    , description : String
     , location : Location
     , images : List Image
+    , awards : List Award
+    }
+
+
+type alias Award =
+    { id : Guid
+    , title : String
+    , image : Image
+    , found : Maybe Posix
     }
 
 
 type alias Image =
     { url : String
     , description : String
+
+    -- TODO size
+    -- TODO blur hash
     }
 
 
