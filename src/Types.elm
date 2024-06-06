@@ -2,6 +2,7 @@ module Types exposing (..)
 
 import Browser exposing (UrlRequest)
 import Browser.Navigation as Nav
+import Lamdera exposing (ClientId)
 import Time exposing (Posix)
 import UUID
 import Url exposing (Url)
@@ -114,6 +115,7 @@ type ToBackend
 
 type BackendMsg
     = NoOpBackendMsg
+    | SendConnect ClientId
 
 
 type ToFrontend
