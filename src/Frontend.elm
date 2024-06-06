@@ -143,6 +143,8 @@ routeParser =
         , UP.map PlaygroundRoute (UP.s "playground" </> UP.string)
         , UP.map NewAwardRoute (UP.s "new-award" </> UP.string)
         , UP.map AwardsRoute (UP.s "award")
+        , UP.map AdminRoute (UP.s "admin")
+        , UP.map PlaygroundAdminRoute (UP.s "admin" </> UP.s "playground" </> UP.string)
         ]
 
 
@@ -230,7 +232,19 @@ view model =
                     viewNewAwardRoute model
 
                 AdminRoute ->
-                    Html.text "todo"
+                    viewAdminRoute model
+
+                PlaygroundAdminRoute guid ->
+                    let
+                        playground =
+                            model.playgrounds |> List.filter (\p -> p.id == guid) |> List.head
+                    in
+                    case playground of
+                        Just p ->
+                            viewPlaygroundAdminRoute model p
+
+                        Nothing ->
+                            Html.text "404 :<"
 
         body =
             case model.modal of
@@ -334,6 +348,18 @@ viewMainRoute model =
                         <|
                             text "Neuer Stempel"
                     }
+                , link []
+                    { url = "/admin"
+                    , label =
+                        el
+                            [ padding 16
+                            , Background.color secondaryDark
+                            , Border.rounded 16
+                            , Font.color white
+                            ]
+                        <|
+                            text "Admin Seite"
+                    }
                 ]
             ]
 
@@ -435,6 +461,119 @@ viewPlaygroundRoute model playground =
             ]
 
 
+viewAdminRoute : Model -> Html.Html msg
+viewAdminRoute model =
+    let
+        addPlaygroundButton =
+            Input.button
+                [ width fill
+                , Border.rounded 16
+                , Background.color secondary
+                , width fill
+                , height (px 64)
+                , paddingXY 24 0
+                , Font.color secondaryDark
+                ]
+                { onPress = Nothing
+                , label = el [ centerX, centerY ] <| icon Icons.add
+                }
+    in
+    layout
+        [ width fill
+        , height fill
+        ]
+    <|
+        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+            [ column [ spacing 24, width fill ]
+                [ viewTitle "Admin Seite"
+                , viewParapraph "Hier kannst du alles einstellen"
+                ]
+            , column
+                [ spacing 16, width fill ]
+                ((model.playgrounds |> List.map playgroundAdminItem) ++ [ addPlaygroundButton ])
+            ]
+
+
+viewPlaygroundAdminRoute : Model -> Playground -> Html.Html FrontendMsg
+viewPlaygroundAdminRoute model playground =
+    let
+        addAwardButton =
+            Input.button
+                [ width fill
+                , Border.rounded 16
+                , Background.color secondary
+                , width fill
+                , height (px 64)
+                , paddingXY 24 0
+                , inFront <| cuteLabel "Stempel"
+                ]
+                { onPress = Nothing
+                , label = el [ centerX, centerY ] <| icon Icons.add
+                }
+    in
+    layout [ width fill, height fill ] <|
+        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+            [ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
+            , column [ spacing 32, width fill ]
+                [ cuteInput "Titel des Spielplatzes" playground.title <| \_ -> NoOpFrontendMsg
+                , cuteInputMultiline "Beschreibung des Spielpatzes" playground.description <| \_ -> NoOpFrontendMsg
+                ]
+            , viewImageStripAdmin playground.images
+            , column [ spacing 16, width fill ] <|
+                (List.map viewAwardItemAdmin playground.awards ++ [ addAwardButton ])
+            , row [ width fill, spacing 16 ]
+                [ cuteInput "Längengrad" (playground.location.lng |> String.fromFloat) <| \_ -> NoOpFrontendMsg
+                , cuteInput "Breitengrad" (playground.location.lng |> String.fromFloat) <| \_ -> NoOpFrontendMsg
+                ]
+            , mapCollapsed playground.location
+            ]
+
+
+viewAwardItemAdmin : Award -> Element FrontendMsg
+viewAwardItemAdmin award =
+    column [ Border.color secondary, Border.width 2, padding 16, Border.rounded 16, width fill, inFront <| cuteLabel "Stempel", spacing 16 ]
+        [ cuteInput "Titel" award.title <| \_ -> NoOpFrontendMsg
+        , cuteInput "Bild URL" award.image.url <| \_ -> NoOpFrontendMsg
+        ]
+
+
+cuteInput label text_ msg =
+    Input.text
+        [ Border.width 0
+        , Background.color secondary
+        , paddingEach { top = 16, left = 10, right = 10, bottom = 12 }
+        , Border.rounded 16
+        , width fill
+        , inFront <| cuteLabel label
+        ]
+        { text = text_
+        , onChange = msg
+        , placeholder = Nothing -- Just <| Input.placeholder [] none
+        , label = Input.labelHidden label
+        }
+
+
+cuteLabel label =
+    el [ Font.size 16, Background.color white, moveUp 10, centerX, paddingXY 6 2, Border.rounded 8 ] <| text label
+
+
+cuteInputMultiline label text_ msg =
+    Input.multiline
+        [ Border.width 0
+        , Background.color secondary
+        , paddingEach { top = 16, left = 10, right = 10, bottom = 12 }
+        , Border.rounded 16
+        , width fill
+        , inFront <| cuteLabel label
+        ]
+        { text = text_
+        , onChange = msg
+        , placeholder = Nothing -- Just <| Input.placeholder [] none
+        , label = Input.labelHidden label
+        , spellcheck = True
+        }
+
+
 viewTitle label =
     paragraph [ spacing 16 ]
         [ el [ Font.bold, Font.size 32, Font.color secondaryDark ] <| text label
@@ -453,6 +592,16 @@ viewImageStrip images =
         _ ->
             row [ scrollbarX, height (px 140), spacing 16, width fill, style "flex" "none" ] <|
                 List.map imagePreview images
+
+
+viewImageStripAdmin images =
+    let
+        addImageButton =
+            Input.button [ Border.rounded 16, Background.color secondary, width (px 120), height (px 120) ]
+                { onPress = Nothing, label = el [ centerX, centerY, Font.color secondaryDark ] <| icon Icons.add_a_photo }
+    in
+    row [ scrollbarX, height (px 140), spacing 16, width fill, style "flex" "none" ] <|
+        (List.map imagePreview images ++ [ addImageButton ])
 
 
 
@@ -601,6 +750,25 @@ playgroundItem location playground =
         }
 
 
+playgroundAdminItem : Playground -> Element msg
+playgroundAdminItem playground =
+    link
+        [ Border.rounded 16
+        , Background.color secondary
+        , width fill
+        , height (px 64)
+        , paddingXY 24 0
+        ]
+    <|
+        { label =
+            row [ centerY, width fill, Font.color secondaryDark, spacing 8 ]
+                [ icon Icons.toys
+                , textTruncated playground.title
+                ]
+        , url = "/admin/playground/" ++ playground.id
+        }
+
+
 awardPlaceholder got offX offY new =
     el
         [ Border.rounded 999
@@ -678,10 +846,16 @@ viewAward offX offY award =
                 , moveRight offX
                 , moveDown offY
                 , scale 1.1
+                , style "mask" "url(\"/assets/images/dust_mask.png\") center / cover luminance"
                 , inFront <| displayIf new newBatch
                 ]
             <|
-                emptyEl [ Background.image award.image.url, width fill, height fill, Border.rounded 9999 ]
+                emptyEl
+                    [ Background.image award.image.url
+                    , width fill
+                    , height fill
+                    , Border.rounded 9999
+                    ]
 
         newBatch =
             el

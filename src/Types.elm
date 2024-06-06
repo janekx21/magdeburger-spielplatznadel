@@ -26,10 +26,11 @@ type Modal
 
 type Route
     = MainRoute
-    | PlaygroundRoute String
+    | PlaygroundRoute Guid
     | AwardsRoute
-    | NewAwardRoute String
+    | NewAwardRoute Guid
     | AdminRoute
+    | PlaygroundAdminRoute Guid
 
 
 type alias Playground =
