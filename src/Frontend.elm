@@ -189,7 +189,7 @@ updateFromBackend msg model =
 
         PlaygroundsFetched playgrounds ->
             -- TODO do not replace unsaved playgrounds
-            ( { model | playgrounds = playgrounds }, Cmd.none )
+            ( { model | playgrounds = model.playgrounds |> updateListViaId playgrounds }, Cmd.none )
 
 
 
