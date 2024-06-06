@@ -4,10 +4,13 @@ class MyCustomElement extends HTMLElement {
   data = null;
   playgroundIcon = null;
 
+  markers = [];
+
   constructor() {
     // Always call super first in constructor
     super();
     this.map = null;
+    this.markers = []
   }
 
   connectedCallback() {
@@ -48,10 +51,11 @@ class MyCustomElement extends HTMLElement {
     });
 
     for (const marker of this.data.markers) {
-      L.marker([marker.lat, marker.lng], { icon: this.playgroundIcon })
+      const m = L.marker([marker.lat, marker.lng], { icon: this.playgroundIcon })
           .addTo(this.map)
           .bindPopup("Spielplatz Alter Markt<br>Platzhalter");
       // .openPopup();
+      this.markers.push(m)
     }
   }
 
@@ -66,7 +70,19 @@ class MyCustomElement extends HTMLElement {
   attributeChangedCallback(name, oldValue, newValue) {
     this.data = JSON.parse(newValue);
     if (this.map) {
-      this.map.setView([this.data.camera.lat, this.data.camera.lng], this.data.camera.zoom);
+      for (const marker of this.markers) {
+        marker.remove()
+      }
+      this.markers = []
+      for (const marker of this.data.markers) {
+        console.log([marker.lat, marker.lng])
+        const m = L.marker([marker.lat, marker.lng], { icon: this.playgroundIcon })
+            .addTo(this.map)
+            .bindPopup("Spielplatz Alter Markt<br>Platzhalter");
+        // .openPopup();
+        this.markers.push(m)
+      }
+      this.map.setView([this.data.camera.location.lat, this.data.camera.location.lng], this.data.camera.zoom);
     }
   }
 }

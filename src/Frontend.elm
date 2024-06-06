@@ -2,7 +2,7 @@ port module Frontend exposing (..)
 
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
-import Dict
+import Common exposing (..)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -20,7 +20,7 @@ import Time
 import Types exposing (..)
 import UUID exposing (Seeds)
 import Url
-import Url.Parser as UP exposing ((</>), Parser, int, oneOf, s, string)
+import Url.Parser as UP exposing ((</>), Parser, oneOf)
 
 
 type alias Model =
@@ -54,7 +54,7 @@ init url key =
       , online = True
       , myLocation = Just { lat = 52.1, lng = 11.6 }
       , modal = Nothing
-      , seeds = UUID.Seeds (Random.initialSeed 1) (Random.initialSeed 2) (Random.initialSeed 3) (Random.initialSeed 4)
+      , seeds = UUID.Seeds (Random.initialSeed 1) (Random.initialSeed 2) (Random.initialSeed 3) (Random.initialSeed 4) -- TODO random generate seeds :>
       , playgrounds =
             [ { title = "Spielplatz"
               , description = "Dinosaurier Spielplatz am Werder"
@@ -67,15 +67,15 @@ init url key =
                       , found = Just <| Time.millisToPosix 0
                       , image =
                             { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
-                            , description = "Dino Stempel"
+                            , description = "Blauer Dino"
                             }
                       }
                     , { title = "Dino 2"
                       , id = "21f2cd1e-a7f8-46be-8129-358e9c4d3c49"
                       , found = Nothing
                       , image =
-                            { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
-                            , description = "Dino Stempel"
+                            { url = "https://stylegreen-shop.cstatic.io/media/image/03/e2/87/styleGREEN_Tierpiktogramm_Dino_Nino_Moostier.png"
+                            , description = "Grüner Dino"
                             }
                       }
                     ]
@@ -106,7 +106,7 @@ init url key =
               , id = "250413dd-ee7c-4889-a1d7-5d4fc9d5c558"
               , images =
                     [ { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
-                      , description = "Mittelstelle"
+                      , description = "Mitteltelle"
                       }
                     , { url = "https://bilder.spielplatztreff.de/spielplatzbild/spielplatz-schellheimerplatz-in-magdeburg_1410435124572.jpg"
                       , description = "Mittelstelle"
@@ -195,7 +195,7 @@ update msg model =
             ( { model | modal = Nothing }, Cmd.none )
 
         UpdatePlayground playground ->
-            ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, Cmd.none )
+            ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, Lamdera.sendToBackend <| UploadPlayground playground )
 
         AddPlayground ->
             let
@@ -250,14 +250,12 @@ updateFromBackend msg model =
         NoOpToFrontend ->
             ( model, Cmd.none )
 
+        PlaygroundUploaded playground ->
+            ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, Cmd.none )
 
-updateListItemViaId : { a | id : Guid } -> List { a | id : Guid } -> List { a | id : Guid }
-updateListItemViaId item list =
-    list
-        |> List.map (\p -> ( p.id, p ))
-        |> Dict.fromList
-        |> Dict.insert item.id item
-        |> Dict.values
+        PlaygroundsFetched playgrounds ->
+            -- TODO do not replace unsaved playgrounds
+            ( { model | playgrounds = playgrounds }, Cmd.none )
 
 
 

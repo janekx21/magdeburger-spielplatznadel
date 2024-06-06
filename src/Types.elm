@@ -85,7 +85,7 @@ type alias Guid =
 
 
 type alias BackendModel =
-    { message : String
+    { playgrounds : List Playground
     }
 
 
@@ -108,6 +108,8 @@ type FrontendMsg
 
 type ToBackend
     = NoOpToBackend
+    | UploadPlayground Playground
+    | FetchPlaygrounds
 
 
 type BackendMsg
@@ -116,3 +118,5 @@ type BackendMsg
 
 type ToFrontend
     = NoOpToFrontend
+    | PlaygroundUploaded Playground
+    | PlaygroundsFetched (List Playground)
