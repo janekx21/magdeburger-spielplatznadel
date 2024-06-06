@@ -99,6 +99,8 @@ type FrontendMsg
     | OpenImageModal Image
     | CloseModal
     | NoOpFrontendMsg
+    | UpdatePlayground Playground
+    | AddPlayground
 
 
 type ToBackend

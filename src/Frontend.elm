@@ -2,6 +2,7 @@ port module Frontend exposing (..)
 
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
+import Dict
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -193,12 +194,44 @@ update msg model =
         CloseModal ->
             ( { model | modal = Nothing }, Cmd.none )
 
+        UpdatePlayground playground ->
+            ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, Cmd.none )
+
+        AddPlayground ->
+            ( { model
+                | playgrounds =
+                    model.playgrounds
+                        ++ [ initPlayground ]
+              }
+            , Nav.pushUrl model.key <| "/admin/playground/" ++ initPlayground.id
+            )
+
+
+initPlayground : Playground
+initPlayground =
+    { id = "generate-id"
+    , awards = []
+    , location = magdeburg
+    , description = ""
+    , title = ""
+    , images = []
+    }
+
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
 updateFromBackend msg model =
     case msg of
         NoOpToFrontend ->
             ( model, Cmd.none )
+
+
+updateListItemViaId : { a | id : Guid } -> List { a | id : Guid } -> List { a | id : Guid }
+updateListItemViaId item list =
+    list
+        |> List.map (\p -> ( p.id, p ))
+        |> Dict.fromList
+        |> Dict.insert item.id item
+        |> Dict.values
 
 
 
@@ -461,7 +494,7 @@ viewPlaygroundRoute model playground =
             ]
 
 
-viewAdminRoute : Model -> Html.Html msg
+viewAdminRoute : Model -> Html.Html FrontendMsg
 viewAdminRoute model =
     let
         addPlaygroundButton =
@@ -474,7 +507,7 @@ viewAdminRoute model =
                 , paddingXY 24 0
                 , Font.color secondaryDark
                 ]
-                { onPress = Nothing
+                { onPress = Just AddPlayground
                 , label = el [ centerX, centerY ] <| icon Icons.add
                 }
     in
@@ -505,36 +538,55 @@ viewPlaygroundAdminRoute model playground =
                 , width fill
                 , height (px 64)
                 , paddingXY 24 0
-                , inFront <| cuteLabel "Stempel"
+                , Font.color secondaryDark
                 ]
-                { onPress = Nothing
-                , label = el [ centerX, centerY ] <| icon Icons.add
+                { onPress = Just <| UpdatePlayground { playground | awards = playground.awards ++ [ initAward ] }
+                , label = row [ centerX, centerY, spacing 8 ] [ icon Icons.add, icon Icons.approval ]
                 }
+
+        viewAwardItemAdmin : Award -> Element FrontendMsg
+        viewAwardItemAdmin award =
+            column [ Border.color secondary, Border.width 2, padding 16, Border.rounded 16, width fill, inFront <| cuteLabel "Stempel", spacing 16 ]
+                [ row [ width fill, spaceEvenly ]
+                    [ viewAward 8 8 { award | found = Just <| Time.millisToPosix 0 }
+                    , viewAward 8 8 { award | found = Nothing }
+                    ]
+                , cuteInput "Titel" award.title <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | title = v } }
+                , cuteInput "Bild URL" award.image.url <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | image = { description = award.image.description, url = v } } }
+                ]
     in
     layout [ width fill, height fill ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
             , column [ spacing 32, width fill ]
-                [ cuteInput "Titel des Spielplatzes" playground.title <| \_ -> NoOpFrontendMsg
-                , cuteInputMultiline "Beschreibung des Spielpatzes" playground.description <| \_ -> NoOpFrontendMsg
+                [ cuteInput "Titel des Spielplatzes" playground.title <| \v -> UpdatePlayground { playground | title = v }
+                , cuteInputMultiline "Beschreibung des Spielpatzes" playground.description <| \v -> UpdatePlayground { playground | description = v }
                 ]
             , viewImageStripAdmin playground.images
             , column [ spacing 16, width fill ] <|
                 (List.map viewAwardItemAdmin playground.awards ++ [ addAwardButton ])
-            , row [ width fill, spacing 16 ]
-                [ cuteInput "Längengrad" (playground.location.lng |> String.fromFloat) <| \_ -> NoOpFrontendMsg
-                , cuteInput "Breitengrad" (playground.location.lng |> String.fromFloat) <| \_ -> NoOpFrontendMsg
+            , let
+                location =
+                    playground.location
+              in
+              row [ width fill, spacing 16 ]
+                [ cuteInput "Längengrad" (playground.location.lat |> String.fromFloat) <| \v -> UpdatePlayground { playground | location = { location | lat = String.toFloat v |> Maybe.withDefault location.lat } }
+                , cuteInput "Breitengrad" (playground.location.lng |> String.fromFloat) <| \v -> UpdatePlayground { playground | location = { location | lng = String.toFloat v |> Maybe.withDefault location.lng } }
                 ]
             , mapCollapsed playground.location
             ]
 
 
-viewAwardItemAdmin : Award -> Element FrontendMsg
-viewAwardItemAdmin award =
-    column [ Border.color secondary, Border.width 2, padding 16, Border.rounded 16, width fill, inFront <| cuteLabel "Stempel", spacing 16 ]
-        [ cuteInput "Titel" award.title <| \_ -> NoOpFrontendMsg
-        , cuteInput "Bild URL" award.image.url <| \_ -> NoOpFrontendMsg
-        ]
+initAward : Award
+initAward =
+    { title = ""
+    , id = "generated-id"
+    , image =
+        { url = ""
+        , description = ""
+        }
+    , found = Nothing
+    }
 
 
 cuteInput label text_ msg =
@@ -881,7 +933,7 @@ viewAward offX offY award =
         , Border.color secondary
         , Border.width 8
         , Border.dashed
-        , inFront <| el [ centerY, centerX, itim, Font.color secondary ] <| text award.title
+        , inFront <| paragraph [ centerY, centerX, itim, Font.color secondary, padding 10, Font.center ] [ text award.title ]
         , inFront <| displayIf got awardEl
         ]
 
