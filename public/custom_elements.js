@@ -24,6 +24,12 @@ class MyCustomElement extends HTMLElement {
       attributionControl: false,
     }).setView([this.data.camera.location.lat, this.data.camera.location.lng], this.data.camera.zoom);
 
+    this.map.on('click', (e) => {
+      const {lat, lng} = e.latlng;
+      const detail = {lat, lng};
+      const event = new CustomEvent("click2", {detail});
+      this.dispatchEvent(event)
+    });
 
     // https://wiki.openstreetmap.org/wiki/Raster_tile_providers
     // const adress =

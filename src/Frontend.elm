@@ -11,6 +11,8 @@ import Element.Font as Font
 import Element.Input as Input
 import Html
 import Html.Attributes
+import Html.Events
+import Json.Decode as D
 import Json.Encode as E
 import Lamdera
 import Material.Icons as Icons
@@ -161,6 +163,22 @@ update msg model =
             )
 
 
+
+--RouteMsg routeMsg ->
+--    case ( model.route, routeMsg ) of
+--        ( PlaygroundAdminRoute routeModel, PlaygroundAdminRouteMsg localMsg ) ->
+--            case localMsg of
+--                MapClicked location ->
+--                    let
+--                        _ =
+--                            Debug.log "clicked" location
+--                    in
+--                    ( model, Cmd.none )
+--
+--        ( _, _ ) ->
+--            ( model, Cmd.none )
+
+
 initPlayground : Seeds -> ( Playground, Seeds )
 initPlayground s1 =
     let
@@ -217,10 +235,19 @@ view model =
                             viewPlaygroundRoute model p
 
                         Nothing ->
-                            Html.text "404 :<"
+                            Html.text <| "the playground " ++ guid ++ " does not exist"
 
                 NewAwardRoute guid ->
-                    viewNewAwardRoute model
+                    let
+                        award =
+                            model |> allAwards |> List.filter (\a -> a.id == guid) |> List.head
+                    in
+                    case award of
+                        Just a ->
+                            viewNewAwardRoute model a
+
+                        Nothing ->
+                            Html.text <| "the award " ++ guid ++ " does not exist"
 
                 AdminRoute ->
                     viewAdminRoute model
@@ -235,7 +262,7 @@ view model =
                             viewPlaygroundAdminRoute model p
 
                         Nothing ->
-                            Html.text "404 :<"
+                            Html.text <| "the playground " ++ guid ++ " does not exist"
 
         body =
             case model.modal of
@@ -296,7 +323,7 @@ viewImageModal i =
             ]
 
 
-viewMainRoute : Model -> Html.Html msg
+viewMainRoute : Model -> Html.Html FrontendMsg
 viewMainRoute model =
     let
         playgrounds =
@@ -328,18 +355,6 @@ viewMainRoute model =
                 [ spacing 16, width fill ]
                 [ el [ Font.bold ] <| text "debuggin menu"
                 , link []
-                    { url = "/new-award/placeholder"
-                    , label =
-                        el
-                            [ padding 16
-                            , Background.color secondaryDark
-                            , Border.rounded 16
-                            , Font.color white
-                            ]
-                        <|
-                            text "Neuer Stempel"
-                    }
-                , link []
                     { url = "/admin"
                     , label =
                         el
@@ -351,6 +366,28 @@ viewMainRoute model =
                         <|
                             text "Admin Seite"
                     }
+                , column [ spacing 8, width fill ]
+                    (allAwards model
+                        |> List.map
+                            (\{ id, title } ->
+                                link [ width fill ]
+                                    { url = "/new-award/" ++ id
+                                    , label =
+                                        el
+                                            [ padding 16
+                                            , Background.color secondaryDark
+                                            , Border.rounded 16
+                                            , Font.color white
+                                            , width fill
+                                            ]
+                                        <|
+                                            text <|
+                                                "Stempel "
+                                                    ++ title
+                                                    ++ " eintragen"
+                                    }
+                            )
+                    )
                 ]
             ]
 
@@ -364,9 +401,6 @@ viewAwardsRoute model =
 
         dot =
             el [ width (px 12), height (px 12), Background.color secondaryDark, Border.rounded 999 ] <| none
-
-        allAwards =
-            model.playgrounds |> List.concatMap .awards
     in
     layout [ width fill, height fill, behindContent <| el [ height fill, width (px 24), padding 8 ] <| column [ centerX, height fill ] <| (List.repeat 12 dot |> List.intersperse bound) ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
@@ -374,8 +408,12 @@ viewAwardsRoute model =
                 [ viewTitle "Stempelbuch"
                 , viewParapraph "Hier findest du alle eingetragenen und austehenden Stempel."
                 ]
-            , viewAwardList allAwards
+            , viewAwardList <| allAwards model
             ]
+
+
+allAwards model =
+    model.playgrounds |> List.concatMap .awards
 
 
 viewAwardList awards =
@@ -393,7 +431,7 @@ viewAwardList awards =
             List.map (viewAward offX offY) awards
 
 
-viewNewAwardRoute model =
+viewNewAwardRoute model award =
     layout [ width fill, height fill ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column
@@ -407,16 +445,15 @@ viewNewAwardRoute model =
                     <|
                         image
                             [ width fill
-                            , moveDown 45
+                            , moveDown 10
                             ]
                             { src = "/assets/images/stamp.svg"
                             , description = "a stamp"
                             }
                 , below <|
                     column [ spacing 16, width fill ]
-                        [ placeholderLarger
-                        , linePlaceholder 18
-                        , linePlaceholder 4
+                        [ viewTitle "Glückwunsch!"
+                        , viewParapraph <| "Du hast gerade den " ++ award.title ++ " Stempel gefunden. Trag ihn schnell in dein Stempelheft ein."
                         , replacingLink [ centerX, padding 16 ]
                             { url = "/award"
                             , label =
@@ -432,7 +469,7 @@ viewNewAwardRoute model =
                             }
                         ]
                 ]
-                [ el [ centerX, paddingXY 0 100, scale 1.7 ] <| awardPlaceholder True 8 4 True
+                [ el [ centerX, paddingXY 0 70, scale 1.7 ] <| viewAward 8 4 { award | found = Just <| Time.millisToPosix 0 }
                 ]
             ]
 
@@ -512,6 +549,21 @@ viewPlaygroundAdminRoute model playground =
                 , cuteInput "Titel" award.title <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | title = v } }
                 , cuteInput "Bild URL" award.image.url <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | image = { description = award.image.description, url = v } } }
                 ]
+
+        adminMap =
+            el
+                [ width fill
+                , aspect 7 4
+                , flexBasisAuto
+                , Border.rounded 16
+                , style "overflow" "hidden"
+                ]
+            <|
+                leafletMap
+                    { camera = { location = playground.location, zoom = 14 }
+                    , markers = [ playground.location ]
+                    , onClick = Just <| \v -> UpdatePlayground { playground | location = v }
+                    }
     in
     layout [ width fill, height fill ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
@@ -531,7 +583,7 @@ viewPlaygroundAdminRoute model playground =
                 [ cuteInput "Längengrad" (playground.location.lat |> String.fromFloat) <| \v -> UpdatePlayground { playground | location = { location | lat = String.toFloat v |> Maybe.withDefault location.lat } }
                 , cuteInput "Breitengrad" (playground.location.lng |> String.fromFloat) <| \v -> UpdatePlayground { playground | location = { location | lng = String.toFloat v |> Maybe.withDefault location.lng } }
                 ]
-            , mapCollapsed playground.location
+            , adminMap
             ]
 
 
@@ -686,6 +738,7 @@ map location marker =
                 , zoom = 12
                 }
             , markers = marker
+            , onClick = Nothing
             }
 
 
@@ -698,18 +751,26 @@ mapCollapsed location =
         , style "overflow" "hidden"
         ]
     <|
-        leafletMap { camera = { location = location, zoom = 14 }, markers = [ location ] }
+        leafletMap { camera = { location = location, zoom = 14 }, markers = [ location ], onClick = Nothing }
 
 
-leafletMap : LeafletMapConfig -> Element msg
+leafletMap : LeafletMapConfig -> Element FrontendMsg
 leafletMap config =
     el [ behindContent <| el [ Background.image "/assets/images/map_background.jpg", width fill, height fill ] none, height fill, width fill ] <|
         html <|
             Html.node "leaflet-map"
-                [ Html.Attributes.attribute "data" (E.encode 0 (encodeLeafletMapConfig config))
-                , Html.Attributes.style "height" "100%"
-                , Html.Attributes.style "background" "transparent"
-                ]
+                ([ Html.Attributes.attribute "data" (E.encode 0 (encodeLeafletMapConfig config))
+                 , Html.Attributes.style "height" "100%"
+                 , Html.Attributes.style "background" "transparent"
+                 ]
+                    ++ (case config.onClick of
+                            Just onClick ->
+                                [ Html.Events.on "click2" (D.map onClick (decodeDetail decodeLocation)) ]
+
+                            Nothing ->
+                                []
+                       )
+                )
                 []
 
 
@@ -1000,6 +1061,18 @@ encodeLocation location =
         [ ( "lat", E.float location.lat )
         , ( "lng", E.float location.lng )
         ]
+
+
+decodeDetail : D.Decoder a -> D.Decoder a
+decodeDetail a =
+    D.field "detail" a
+
+
+decodeLocation : D.Decoder Location
+decodeLocation =
+    D.map2 Location
+        (D.field "lat" D.float)
+        (D.field "lng" D.float)
 
 
 square =

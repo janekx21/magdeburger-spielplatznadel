@@ -66,6 +66,7 @@ type alias Image =
 type alias LeafletMapConfig =
     { camera : Camera
     , markers : List Location
+    , onClick : Maybe (Location -> FrontendMsg)
     }
 
 
@@ -105,6 +106,25 @@ type FrontendMsg
     | UpdatePlayground Playground
     | AddAward Playground
     | AddPlayground
+
+
+
+--    | RouteMsg RouteMsg
+
+
+{-|
+
+    This Message gets triggered when a route sends a message.
+    The great thing is that type names and constructors do not collide
+
+-}
+
+
+
+--type RouteMsg
+--    = PlaygroundAdminRouteMsg PlaygroundAdminRouteMsg
+--type PlaygroundAdminRouteMsg
+--    = MapClicked Location
 
 
 type ToBackend
