@@ -18,7 +18,7 @@ type alias FrontendModel =
     , route : Route
     , online : Bool
     , playgrounds : List Playground
-    , myLocation : Maybe Location
+    , currentGeoLocation : Maybe GeoLocation -- TODO dont use this as the maps view location. this could snap back at any time
     , modal : Maybe Modal
     , seeds : UUID.Seeds
     }
@@ -26,6 +26,7 @@ type alias FrontendModel =
 
 type Modal
     = ImageModal Image
+    | AreYouSureModal String FrontendMsg
 
 
 type Route
@@ -97,6 +98,14 @@ type alias Location =
     }
 
 
+{-| <https://wiki.selfhtml.org/wiki/JavaScript/Geolocation>
+-}
+type alias GeoLocation =
+    { location : Location
+    , heading : Maybe Float
+    }
+
+
 type alias Guid =
     String
 
@@ -116,12 +125,14 @@ type FrontendMsg
     | UrlChanged Url
     | Online Bool
     | ReplaceUrl String
-    | OpenImageModal Image
+    | OpenModal Modal
     | CloseModal
+    | CloseModalAnd FrontendMsg
     | NoOpFrontendMsg
     | UpdatePlayground Playground
     | AddAward Playground
     | AddPlayground
+    | GeoLocationUpdated (Maybe GeoLocation)
 
 
 

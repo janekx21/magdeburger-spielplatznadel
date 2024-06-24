@@ -28,5 +28,14 @@ updateListViaId items list =
         |> Dict.values
 
 
+removeItemViaId : { a | id : Guid } -> List { a | id : Guid } -> List { a | id : Guid }
+removeItemViaId item list =
+    list
+        |> List.map (\p -> ( p.id, p ))
+        |> Dict.fromList
+        |> Dict.remove item.id
+        |> Dict.values
+
+
 defaultMarkerIcon =
     { url = "/assets/images/playground_icon_1.png", shadowUrl = "/assets/images/playground_icon_1_shadow.png" }

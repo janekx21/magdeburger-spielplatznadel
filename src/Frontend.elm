@@ -41,7 +41,7 @@ app =
         , onUrlChange = UrlChanged
         , update = update
         , updateFromBackend = updateFromBackend
-        , subscriptions = \m -> Sub.none
+        , subscriptions = subscriptions
         , view = view
         }
 
@@ -59,7 +59,7 @@ init url key =
     ( { key = key
       , route = route
       , online = True
-      , myLocation = Just { lat = 52.1, lng = 11.6 }
+      , currentGeoLocation = Nothing
       , modal = Nothing
       , seeds = UUID.Seeds (Random.initialSeed 1) (Random.initialSeed 2) (Random.initialSeed 3) (Random.initialSeed 4) -- TODO random generate seeds :>
       , playgrounds = []
@@ -129,9 +129,6 @@ update msg model =
         Online status ->
             ( { model | online = status }, Cmd.none )
 
-        OpenImageModal image ->
-            ( { model | modal = Just <| ImageModal image }, Cmd.none )
-
         CloseModal ->
             ( { model | modal = Nothing }, Cmd.none )
 
@@ -166,6 +163,21 @@ update msg model =
               }
             , Cmd.none
             )
+
+        OpenModal modal ->
+            ( { model | modal = Just modal }, Cmd.none )
+
+        CloseModalAnd frontendMsg ->
+            case frontendMsg of
+                CloseModalAnd _ ->
+                    -- dont recurse pls
+                    ( model, Cmd.none )
+
+                _ ->
+                    update frontendMsg (update CloseModal model |> Tuple.first)
+
+        GeoLocationUpdated geoLocation ->
+            ( { model | currentGeoLocation = geoLocation }, Cmd.none )
 
 
 
@@ -277,6 +289,9 @@ view model =
 
                 Just (ImageModal image) ->
                     viewImageModal image
+
+                Just (AreYouSureModal label msg) ->
+                    viewAreYouSureModal label msg
     in
     { title = "", body = [ body ] }
 
@@ -329,13 +344,36 @@ viewImageModal i =
             ]
 
 
+viewAreYouSureModal label msg =
+    let
+        button attr msg_ label_ =
+            Input.button ([ Font.color black, padding 8, Border.rounded 8, width fill ] ++ attr) { onPress = Just msg_, label = el [ centerX ] <| text label_ }
+    in
+    layout
+        [ width fill
+        , height fill
+        , Font.color white
+        , Background.color black
+        , Font.size 32
+        , padding 32
+        ]
+    <|
+        column [ centerX, centerY, spacing 16, width fill ]
+            [ paragraph [ width fill ] [ text label ]
+            , row [ width fill, spacing 8 ]
+                [ button [ Background.color accent ] (CloseModalAnd msg) "Ja"
+                , button [ Background.color primary ] CloseModal "Nein"
+                ]
+            ]
+
+
 viewMainRoute : Model -> Html.Html FrontendMsg
 viewMainRoute model =
     let
         playgrounds =
-            case model.myLocation of
-                Just loc ->
-                    model.playgrounds |> List.sortBy (\p -> locationDistanceInKilometers p.location loc)
+            case model.currentGeoLocation of
+                Just geoLocation ->
+                    model.playgrounds |> List.sortBy (\p -> locationDistanceInKilometers p.location geoLocation.location)
 
                 Nothing ->
                     model.playgrounds
@@ -353,10 +391,10 @@ viewMainRoute model =
                 [ viewTitle "Magdeburger Spielplatznadel"
                 , viewParapraph "Fangt jetzt an Stempel zu sammeln und schaut wie viel ihr bekommen könnt."
                 ]
-            , map model.myLocation (List.map playgroundMarker playgrounds)
+            , map (Maybe.map .location model.currentGeoLocation) (List.map playgroundMarker playgrounds)
             , column
                 [ spacing 16, width fill ]
-                (playgrounds |> List.map (playgroundItem model.myLocation))
+                (playgrounds |> List.map (playgroundItem (Maybe.map .location model.currentGeoLocation)))
             , column
                 [ spacing 16, width fill ]
                 [ el [ Font.bold ] <| text "debuggin menu"
@@ -548,7 +586,16 @@ viewPlaygroundAdminRoute model playground =
                     (images
                         |> List.indexedMap
                             (\index image_ ->
-                                column [ Border.color secondary, Border.width 2, padding 16, Border.rounded 16, width fill, inFront <| cuteLabel "Bild", spacing 16 ]
+                                column
+                                    [ Border.color secondary
+                                    , Border.width 2
+                                    , padding 16
+                                    , Border.rounded 16
+                                    , width fill
+                                    , inFront <| cuteLabel "Bild"
+                                    , spacing 16
+                                    , inFront <| el [ moveUp 18, moveLeft 18 ] <| removeButton (UpdatePlayground { playground | images = removeInList images index })
+                                    ]
                                     [ el [ centerX ] <| imagePreview image_
                                     , cuteInput "URL" image_.url <| \v -> UpdatePlayground { playground | images = replaceInList images index { image_ | url = v } }
                                     ]
@@ -573,7 +620,16 @@ viewPlaygroundAdminRoute model playground =
 
         viewAwardItemAdmin : Award -> Element FrontendMsg
         viewAwardItemAdmin award =
-            column [ Border.color secondary, Border.width 2, padding 16, Border.rounded 16, width fill, inFront <| cuteLabel "Stempel", spacing 16 ]
+            column
+                [ Border.color secondary
+                , Border.width 2
+                , padding 16
+                , Border.rounded 16
+                , width fill
+                , inFront <| cuteLabel "Stempel"
+                , spacing 16
+                , inFront <| el [ moveUp 18, moveLeft 18 ] <| removeButton (UpdatePlayground { playground | awards = removeItemViaId award playground.awards })
+                ]
                 [ row [ width fill, spaceEvenly ]
                     [ viewAward 8 8 { award | found = Just <| Time.millisToPosix 0 }
                     , viewAward 8 8 { award | found = Nothing }
@@ -656,9 +712,36 @@ viewPlaygroundAdminRoute model playground =
             )
 
 
+removeButton msg =
+    Input.button
+        [ Font.color accent
+        , Background.color white
+        , Border.color secondary
+        , Border.width 2
+        , padding 4
+        , Border.rounded 999
+        ]
+        { onPress = Just <| wrapInAreYouSure "Bist du dir sicher, dass du das wirklich löschen willst?" <| msg
+        , label = icon Icons.delete
+        }
+
+
 replaceInList : List a -> Int -> a -> List a
 replaceInList list index a =
-    list |> List.indexedMap (\i x -> ( i, x )) |> Dict.fromList |> Dict.insert index a |> Dict.values
+    list
+        |> List.indexedMap (\i x -> ( i, x ))
+        |> Dict.fromList
+        |> Dict.insert index a
+        |> Dict.values
+
+
+removeInList : List a -> Int -> List a
+removeInList list index =
+    list
+        |> List.indexedMap (\i x -> ( i, x ))
+        |> Dict.fromList
+        |> Dict.remove index
+        |> Dict.values
 
 
 initAward : Seeds -> ( Award, Seeds )
@@ -744,6 +827,28 @@ viewImageStrip images =
                 List.map imagePreview images
 
 
+wrapInAreYouSure label msg =
+    OpenModal <| AreYouSureModal label <| msg
+
+
+subscriptions _ =
+    -- just for debugging :>
+    --geoLocationUpdated <|
+    --    \v ->
+    --        let
+    --            _ =
+    --                Debug.log "elm location" v
+    --
+    --            _ =
+    --                Debug.log "decoded location" (D.decodeString decodeGeoLocation v)
+    --        in
+    --        D.decodeString decodeGeoLocation v |> Result.toMaybe |> GeoLocationUpdated
+    Sub.batch
+        [ geoLocationUpdated <| (D.decodeString decodeGeoLocation >> Result.toMaybe >> GeoLocationUpdated)
+        , geoLocationError <| \_ -> GeoLocationUpdated Nothing
+        ]
+
+
 
 -- Elements
 
@@ -781,7 +886,7 @@ imagePreview image =
                 , height (px 120)
                 , Background.image image.url
                 ]
-                { label = none, onPress = Just <| OpenImageModal image }
+                { label = none, onPress = Just <| OpenModal <| ImageModal image }
     in
     el [ inFront <| displayIf (image.url /= "") button ] <| noImage
 
@@ -1168,6 +1273,13 @@ decodeLocation =
         (D.field "lng" D.float)
 
 
+decodeGeoLocation : D.Decoder GeoLocation
+decodeGeoLocation =
+    D.map2 GeoLocation
+        (D.field "location" decodeLocation)
+        (D.maybe <| D.field "heading" D.float)
+
+
 square =
     aspect 1 1
 
@@ -1300,3 +1412,9 @@ port online : (Bool -> msg) -> Sub msg
 
 
 port pouchDB : String -> Cmd msg
+
+
+port geoLocationUpdated : (String -> msg) -> Sub msg
+
+
+port geoLocationError : (String -> msg) -> Sub msg
