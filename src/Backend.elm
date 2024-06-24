@@ -2,6 +2,7 @@ module Backend exposing (..)
 
 import Common exposing (..)
 import Lamdera exposing (ClientId, SessionId)
+import Set
 import Time
 import Types exposing (..)
 
@@ -11,7 +12,7 @@ type alias Model =
 
 
 
---noinspection ALL
+--noinspection ElmUnusedSymbol,ElmReview
 
 
 app =
@@ -19,23 +20,30 @@ app =
         { init = init
         , update = update
         , updateFromFrontend = updateFromFrontend
-        , subscriptions = \m -> Lamdera.onConnect (\_ clientId -> SendConnect clientId)
+        , subscriptions =
+            \_ ->
+                Sub.batch
+                    [ Lamdera.onConnect (\_ clientId -> ClientConnected clientId)
+                    , Lamdera.onDisconnect (\_ clientId -> ClientDisconnected clientId)
+                    ]
         }
 
 
 init : ( Model, Cmd BackendMsg )
 init =
-    ( { playgrounds = seedsPlaygrounds }
+    ( { playgrounds = seedsPlaygrounds, connected = Set.empty }
     , Cmd.none
     )
 
 
+seedsPlaygrounds : List Playground
 seedsPlaygrounds =
     [ { title = "Spielplatz"
       , description = "Dinosaurier Spielplatz am Werder"
       , location = { lat = 52.13078, lng = 11.65262 }
       , id = "525e1b45-6323-44a0-a7ce-981c3965a735"
       , images = []
+      , markerIcon = defaultMarkerIcon
       , awards =
             [ { title = "Dino"
               , id = "4a98c645-4784-4a6f-b27d-6620d6c1c1eb"
@@ -59,6 +67,7 @@ seedsPlaygrounds =
       , description = "Der große Schelli Spielplatz in mitten von Stadtfeld ist mit vielen kleinen Spielsachen bestückt."
       , location = { lat = 52.126787, lng = 11.608743 }
       , id = "38c8d8ed-ad9d-48ca-8d8e-ce37abebdcab"
+      , markerIcon = defaultMarkerIcon
       , images =
             [ { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
               , description = "Mittelstelle"
@@ -79,6 +88,7 @@ seedsPlaygrounds =
       , description = "Lorem Ipsum"
       , location = { lat = 52.11, lng = 11.61 }
       , id = "250413dd-ee7c-4889-a1d7-5d4fc9d5c558"
+      , markerIcon = defaultMarkerIcon
       , images =
             [ { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
               , description = "Mitteltelle"
@@ -107,8 +117,11 @@ update msg model =
         NoOpBackendMsg ->
             ( model, Cmd.none )
 
-        SendConnect clientId ->
-            ( model, Lamdera.sendToFrontend clientId <| PlaygroundsFetched model.playgrounds )
+        ClientConnected clientId ->
+            ( { model | connected = model.connected |> Set.insert clientId }, Lamdera.sendToFrontend clientId <| PlaygroundsFetched model.playgrounds )
+
+        ClientDisconnected clientId ->
+            ( { model | connected = model.connected |> Set.remove clientId }, Cmd.none )
 
 
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> Model -> ( Model, Cmd BackendMsg )
@@ -118,7 +131,15 @@ updateFromFrontend sessionId clientId msg model =
             ( model, Cmd.none )
 
         UploadPlayground playground ->
-            ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, Lamdera.broadcast <| PlaygroundUploaded playground )
+            let
+                others =
+                    model.connected |> Set.remove clientId |> Set.toList
+            in
+            ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, broadcastTo others <| PlaygroundUploaded playground )
 
         FetchPlaygrounds ->
             ( model, Lamdera.sendToFrontend clientId <| PlaygroundsFetched model.playgrounds )
+
+
+broadcastTo clientIds msg =
+    clientIds |> List.map (\id -> Lamdera.sendToFrontend id msg) |> Cmd.batch

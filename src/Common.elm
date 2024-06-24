@@ -26,3 +26,7 @@ updateListViaId items list =
         |> Dict.fromList
         |> Dict.union newItems
         |> Dict.values
+
+
+defaultMarkerIcon =
+    { url = "/assets/images/playground_icon_1.png", shadowUrl = "/assets/images/playground_icon_1_shadow.png" }

@@ -3,6 +3,7 @@ module Types exposing (..)
 import Browser exposing (UrlRequest)
 import Browser.Navigation as Nav
 import Lamdera exposing (ClientId)
+import Set exposing (Set)
 import Time exposing (Posix)
 import UUID
 import Url exposing (Url)
@@ -43,6 +44,7 @@ type alias Playground =
     , location : Location
     , images : List Image
     , awards : List Award
+    , markerIcon : MarkerIcon
     }
 
 
@@ -65,7 +67,7 @@ type alias Image =
 
 type alias LeafletMapConfig =
     { camera : Camera
-    , markers : List Location
+    , markers : List Marker
     , onClick : Maybe (Location -> FrontendMsg)
     }
 
@@ -73,6 +75,19 @@ type alias LeafletMapConfig =
 type alias Camera =
     { location : Location
     , zoom : Int
+    }
+
+
+type alias MarkerIcon =
+    { url : String
+    , shadowUrl : String
+    }
+
+
+type alias Marker =
+    { location : Location
+    , icon : MarkerIcon
+    , popupText : String
     }
 
 
@@ -88,6 +103,7 @@ type alias Guid =
 
 type alias BackendModel =
     { playgrounds : List Playground
+    , connected : Set ClientId
     }
 
 
@@ -135,7 +151,8 @@ type ToBackend
 
 type BackendMsg
     = NoOpBackendMsg
-    | SendConnect ClientId
+    | ClientConnected ClientId
+    | ClientDisconnected ClientId
 
 
 type ToFrontend

@@ -3,6 +3,7 @@ port module Frontend exposing (..)
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Common exposing (..)
+import Dict
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -27,6 +28,10 @@ import Url.Parser as UP exposing ((</>), Parser, oneOf)
 
 type alias Model =
     FrontendModel
+
+
+
+--noinspection ElmUnusedSymbol
 
 
 app =
@@ -191,6 +196,7 @@ initPlayground s1 =
       , description = ""
       , title = ""
       , images = []
+      , markerIcon = defaultMarkerIcon
       }
     , seeds
     )
@@ -347,7 +353,7 @@ viewMainRoute model =
                 [ viewTitle "Magdeburger Spielplatznadel"
                 , viewParapraph "Fangt jetzt an Stempel zu sammeln und schaut wie viel ihr bekommen könnt."
                 ]
-            , map model.myLocation (List.map .location playgrounds)
+            , map model.myLocation (List.map playgroundMarker playgrounds)
             , column
                 [ spacing 16, width fill ]
                 (playgrounds |> List.map (playgroundItem model.myLocation))
@@ -485,8 +491,12 @@ viewPlaygroundRoute model playground =
                 ]
             , viewImageStrip playground.images
             , column [ spacing 16, width fill ] [ viewAwardList playground.awards ]
-            , mapCollapsed playground.location
+            , mapCollapsed playground
             ]
+
+
+
+-- TODO remove stuff like images, awards and playgrounds
 
 
 viewAdminRoute : Model -> Html.Html FrontendMsg
@@ -525,6 +535,53 @@ viewAdminRoute model =
 viewPlaygroundAdminRoute : Model -> Playground -> Html.Html FrontendMsg
 viewPlaygroundAdminRoute model playground =
     let
+        adminGeneral =
+            column [ spacing 32, width fill ]
+                [ cuteInput "Titel des Spielplatzes" playground.title <| \v -> UpdatePlayground { playground | title = v }
+                , cuteInputMultiline "Beschreibung des Spielpatzes" playground.description <| \v -> UpdatePlayground { playground | description = v }
+                ]
+
+        viewImagesAdmin : List Image -> Element FrontendMsg
+        viewImagesAdmin images =
+            column [ width fill, spacing 16 ]
+                [ column [ width fill, spacing 16 ]
+                    (images
+                        |> List.indexedMap
+                            (\index image_ ->
+                                column [ Border.color secondary, Border.width 2, padding 16, Border.rounded 16, width fill, inFront <| cuteLabel "Bild", spacing 16 ]
+                                    [ el [ centerX ] <| imagePreview image_
+                                    , cuteInput "URL" image_.url <| \v -> UpdatePlayground { playground | images = replaceInList images index { image_ | url = v } }
+                                    ]
+                            )
+                    )
+                , addImageButton
+                ]
+
+        addImageButton =
+            Input.button
+                [ width fill
+                , Border.rounded 16
+                , Background.color secondary
+                , width fill
+                , height (px 64)
+                , paddingXY 24 0
+                , Font.color secondaryDark
+                ]
+                { onPress = Just <| UpdatePlayground { playground | images = playground.images ++ [ { url = "", description = "" } ] }
+                , label = row [ centerX, centerY, spacing 8 ] [ icon Icons.add, icon Icons.image ]
+                }
+
+        viewAwardItemAdmin : Award -> Element FrontendMsg
+        viewAwardItemAdmin award =
+            column [ Border.color secondary, Border.width 2, padding 16, Border.rounded 16, width fill, inFront <| cuteLabel "Stempel", spacing 16 ]
+                [ row [ width fill, spaceEvenly ]
+                    [ viewAward 8 8 { award | found = Just <| Time.millisToPosix 0 }
+                    , viewAward 8 8 { award | found = Nothing }
+                    ]
+                , cuteInput "Titel" award.title <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | title = v } }
+                , cuteInput "Bild URL" award.image.url <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | image = { description = award.image.description, url = v } } }
+                ]
+
         addAwardButton =
             Input.button
                 [ width fill
@@ -539,17 +596,6 @@ viewPlaygroundAdminRoute model playground =
                 , label = row [ centerX, centerY, spacing 8 ] [ icon Icons.add, icon Icons.approval ]
                 }
 
-        viewAwardItemAdmin : Award -> Element FrontendMsg
-        viewAwardItemAdmin award =
-            column [ Border.color secondary, Border.width 2, padding 16, Border.rounded 16, width fill, inFront <| cuteLabel "Stempel", spacing 16 ]
-                [ row [ width fill, spaceEvenly ]
-                    [ viewAward 8 8 { award | found = Just <| Time.millisToPosix 0 }
-                    , viewAward 8 8 { award | found = Nothing }
-                    ]
-                , cuteInput "Titel" award.title <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | title = v } }
-                , cuteInput "Bild URL" award.image.url <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | image = { description = award.image.description, url = v } } }
-                ]
-
         adminMap =
             el
                 [ width fill
@@ -561,30 +607,58 @@ viewPlaygroundAdminRoute model playground =
             <|
                 leafletMap
                     { camera = { location = playground.location, zoom = 14 }
-                    , markers = [ playground.location ]
+                    , markers = [ playgroundMarker playground ]
                     , onClick = Just <| \v -> UpdatePlayground { playground | location = v }
                     }
+
+        viewMarkerAdmin : MarkerIcon -> Element FrontendMsg
+        viewMarkerAdmin marker =
+            let
+                real =
+                    image [ inFront <| image [] { src = marker.url, description = "marker" } ] { src = marker.shadowUrl, description = "marker shadow" }
+            in
+            column [ Border.color secondary, Border.width 2, padding 16, Border.rounded 16, width fill, inFront <| cuteLabel "Markierung", spacing 16 ]
+                [ row [ spaceEvenly, width fill ]
+                    [ image [] { src = marker.url, description = "marker" }
+                    , image [] { src = marker.shadowUrl, description = "marker shadow" }
+                    , real
+                    , el [ scale 0.8 ] <| real
+                    , el [ scale 0.6 ] <| real
+                    ]
+                , cuteInput "URL" marker.url <| \v -> UpdatePlayground { playground | markerIcon = { marker | url = v } }
+                , cuteInput "Schatten Url" marker.shadowUrl <| \v -> UpdatePlayground { playground | markerIcon = { marker | shadowUrl = v } }
+                ]
+
+        adminMapWithLocation =
+            column [ spacing 16 ]
+                [ let
+                    location =
+                        playground.location
+                  in
+                  row [ width fill, spacing 16 ]
+                    [ cuteInput "Längengrad" (playground.location.lat |> String.fromFloat) <| \v -> UpdatePlayground { playground | location = { location | lat = String.toFloat v |> Maybe.withDefault location.lat } }
+                    , cuteInput "Breitengrad" (playground.location.lng |> String.fromFloat) <| \v -> UpdatePlayground { playground | location = { location | lng = String.toFloat v |> Maybe.withDefault location.lng } }
+                    ]
+                , adminMap
+                ]
     in
     layout [ width fill, height fill ] <|
-        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
-            [ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
-            , column [ spacing 32, width fill ]
-                [ cuteInput "Titel des Spielplatzes" playground.title <| \v -> UpdatePlayground { playground | title = v }
-                , cuteInputMultiline "Beschreibung des Spielpatzes" playground.description <| \v -> UpdatePlayground { playground | description = v }
-                ]
-            , viewImageStripAdmin playground.images
-            , column [ spacing 16, width fill ] <|
+        column [ width fill, height fill, spacing 64, padding 22, scrollbarY ]
+            ([ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
+             , adminGeneral
+             , viewMarkerAdmin playground.markerIcon
+             , viewImagesAdmin playground.images
+             , column [ spacing 16, width fill ] <|
                 (List.map viewAwardItemAdmin playground.awards ++ [ addAwardButton ])
-            , let
-                location =
-                    playground.location
-              in
-              row [ width fill, spacing 16 ]
-                [ cuteInput "Längengrad" (playground.location.lat |> String.fromFloat) <| \v -> UpdatePlayground { playground | location = { location | lat = String.toFloat v |> Maybe.withDefault location.lat } }
-                , cuteInput "Breitengrad" (playground.location.lng |> String.fromFloat) <| \v -> UpdatePlayground { playground | location = { location | lng = String.toFloat v |> Maybe.withDefault location.lng } }
-                ]
-            , adminMap
-            ]
+             , adminMapWithLocation
+             ]
+                |> List.intersperse (el [ width fill, height (px 2), Background.color secondary ] <| none)
+            )
+
+
+replaceInList : List a -> Int -> a -> List a
+replaceInList list index a =
+    list |> List.indexedMap (\i x -> ( i, x )) |> Dict.fromList |> Dict.insert index a |> Dict.values
 
 
 initAward : Seeds -> ( Award, Seeds )
@@ -603,6 +677,14 @@ initAward s1 =
       }
     , s2
     )
+
+
+playgroundMarker : Playground -> Marker
+playgroundMarker playground =
+    { location = playground.location
+    , icon = playground.markerIcon
+    , popupText = playground.title
+    }
 
 
 cuteInput label text_ msg =
@@ -662,16 +744,6 @@ viewImageStrip images =
                 List.map imagePreview images
 
 
-viewImageStripAdmin images =
-    let
-        addImageButton =
-            Input.button [ Border.rounded 16, Background.color secondary, width (px 120), height (px 120) ]
-                { onPress = Nothing, label = el [ centerX, centerY, Font.color secondaryDark ] <| icon Icons.add_a_photo }
-    in
-    row [ scrollbarX, height (px 140), spacing 16, width fill, style "flex" "none" ] <|
-        (List.map imagePreview images ++ [ addImageButton ])
-
-
 
 -- Elements
 
@@ -700,14 +772,18 @@ noImage =
 
 
 imagePreview image =
-    Input.button
-        [ Border.rounded 16
-        , Background.color secondary
-        , width (px 120)
-        , height (px 120)
-        , Background.image image.url
-        ]
-        { label = none, onPress = Just <| OpenImageModal image }
+    let
+        button =
+            Input.button
+                [ Border.rounded 16
+                , Background.color secondary
+                , width (px 120)
+                , height (px 120)
+                , Background.image image.url
+                ]
+                { label = none, onPress = Just <| OpenImageModal image }
+    in
+    el [ inFront <| displayIf (image.url /= "") button ] <| noImage
 
 
 mapPlaceholder =
@@ -742,7 +818,7 @@ map location marker =
             }
 
 
-mapCollapsed location =
+mapCollapsed playground =
     el
         [ width fill
         , aspect 7 4
@@ -751,7 +827,7 @@ mapCollapsed location =
         , style "overflow" "hidden"
         ]
     <|
-        leafletMap { camera = { location = location, zoom = 14 }, markers = [ location ], onClick = Nothing }
+        leafletMap { camera = { location = playground.location, zoom = 14 }, markers = [ playgroundMarker playground ], onClick = Nothing }
 
 
 leafletMap : LeafletMapConfig -> Element FrontendMsg
@@ -1050,9 +1126,26 @@ encodeCamera value =
         ]
 
 
-encodeMarkers : List Location -> E.Value
-encodeMarkers locations =
-    E.list encodeLocation locations
+encodeMarkers : List Marker -> E.Value
+encodeMarkers markers =
+    E.list encodeMarker markers
+
+
+encodeMarker : Marker -> E.Value
+encodeMarker marker =
+    E.object
+        [ ( "location", encodeLocation marker.location )
+        , ( "icon", encodeMarkerIcon marker.icon )
+        , ( "popupText", E.string marker.popupText )
+        ]
+
+
+encodeMarkerIcon : MarkerIcon -> E.Value
+encodeMarkerIcon { url, shadowUrl } =
+    E.object
+        [ ( "url", E.string url )
+        , ( "shadowUrl", E.string shadowUrl )
+        ]
 
 
 encodeLocation : Location -> E.Value

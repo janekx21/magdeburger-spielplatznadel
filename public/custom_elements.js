@@ -2,7 +2,6 @@ class MyCustomElement extends HTMLElement {
   static observedAttributes = ["data"];
   map = null;
   data = null;
-  playgroundIcon = null;
 
   markers = [];
 
@@ -17,7 +16,7 @@ class MyCustomElement extends HTMLElement {
     // console.log(`Map elment added to page with ${this.latLng}`);
 
     //const container = document.createElement("div");
-    console.log(this.data)
+    console.log("this.data in connected callback",this.data)
 
     this.map = L.map(this, {
       zoomControl: false,
@@ -46,23 +45,7 @@ class MyCustomElement extends HTMLElement {
       detectRetina: false,
     }).addTo(this.map);
 
-    this.playgroundIcon = L.icon({
-      iconUrl: "/assets/images/playground_icon_1.png",
-      iconSize: [50, 49],
-      iconAnchor: [25, 49],
-      popupAnchor: [-12, -30],
-      shadowUrl: "/assets/images/playground_icon_1_shadow.png",
-      shadowSize: [50, 49],
-      shadowAnchor: [25, 49],
-    });
-
-    for (const marker of this.data.markers) {
-      const m = L.marker([marker.lat, marker.lng], { icon: this.playgroundIcon })
-          .addTo(this.map)
-          .bindPopup("Spielplatz Alter Markt<br>Platzhalter");
-      // .openPopup();
-      this.markers.push(m)
-    }
+    this.update()
   }
 
   disconnectedCallback() {
@@ -75,21 +58,37 @@ class MyCustomElement extends HTMLElement {
 
   attributeChangedCallback(name, oldValue, newValue) {
     this.data = JSON.parse(newValue);
+    this.update()
+  }
+
+  update() {
     if (this.map) {
       for (const marker of this.markers) {
         marker.remove()
       }
       this.markers = []
       for (const marker of this.data.markers) {
-        console.log([marker.lat, marker.lng])
-        const m = L.marker([marker.lat, marker.lng], { icon: this.playgroundIcon })
+        const icon = L.icon({
+          iconUrl: marker.icon.url,
+          iconSize: [50, 49],
+          iconAnchor: [25, 49],
+          popupAnchor: [-12, -30],
+          shadowUrl: marker.icon.shadowUrl,
+          shadowSize: [50, 49],
+          shadowAnchor: [25, 49],
+        });
+
+        const m = L.marker([marker.location.lat, marker.location.lng], { icon })
             .addTo(this.map)
-            .bindPopup("Spielplatz Alter Markt<br>Platzhalter");
+            .bindPopup(marker.popupText);
         // .openPopup();
         this.markers.push(m)
       }
       this.map.setView([this.data.camera.location.lat, this.data.camera.location.lng], this.data.camera.zoom);
     }
+  }
+
+  getIconLazy(url) {
   }
 }
 
