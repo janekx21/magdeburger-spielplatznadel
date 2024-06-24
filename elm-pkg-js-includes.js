@@ -2,7 +2,7 @@
 // For now, its presense will mean Lamdera detects the extra JS and packages
 // In future this will be more structured + restricted once the design is done
 
-const geo_location = require("./elm-pkg-js/gelo-location");
+const geo_location = require("./elm-pkg-js/geo-location");
 
 exports.init = async function init(app) {
   // @WARNING: this only runs for Lamdera production deploys!
