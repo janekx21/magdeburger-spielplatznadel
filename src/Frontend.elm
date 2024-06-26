@@ -1,9 +1,8 @@
-port module Frontend exposing (..)
+port module Frontend exposing (app)
 
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Common exposing (..)
-import Dict
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -64,7 +63,7 @@ init url key =
       , seeds = UUID.Seeds (Random.initialSeed 1) (Random.initialSeed 2) (Random.initialSeed 3) (Random.initialSeed 4) -- TODO random generate seeds :>
       , playgrounds = []
       }
-    , Lamdera.sendToBackend FetchPlaygrounds
+    , Cmd.none
     )
 
 
@@ -114,7 +113,7 @@ update msg model =
             case model.modal of
                 Nothing ->
                     ( { model | route = parseUrl url }
-                    , Lamdera.sendToBackend FetchPlaygrounds
+                    , Cmd.none
                     )
 
                 Just _ ->
@@ -149,6 +148,9 @@ update msg model =
             , Nav.pushUrl model.key <| "/admin/playground/" ++ playground.id
             )
 
+        RemovePlaygroundLocal playground ->
+            ( { model | playgrounds = removeItemViaId playground model.playgrounds }, Cmd.batch [ Nav.back model.key 1, Lamdera.sendToBackend <| RemovePlayground playground ] )
+
         AddAward playground ->
             let
                 ( award, seeds ) =
@@ -180,22 +182,6 @@ update msg model =
             ( { model | currentGeoLocation = geoLocation }, Cmd.none )
 
 
-
---RouteMsg routeMsg ->
---    case ( model.route, routeMsg ) of
---        ( PlaygroundAdminRoute routeModel, PlaygroundAdminRouteMsg localMsg ) ->
---            case localMsg of
---                MapClicked location ->
---                    let
---                        _ =
---                            Debug.log "clicked" location
---                    in
---                    ( model, Cmd.none )
---
---        ( _, _ ) ->
---            ( model, Cmd.none )
-
-
 initPlayground : Seeds -> ( Playground, Seeds )
 initPlayground s1 =
     let
@@ -223,8 +209,10 @@ updateFromBackend msg model =
         PlaygroundUploaded playground ->
             ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, Cmd.none )
 
+        PlaygroundRemoved playground ->
+            ( { model | playgrounds = model.playgrounds |> removeItemViaId playground }, Cmd.none )
+
         PlaygroundsFetched playgrounds ->
-            -- TODO do not replace unsaved playgrounds
             ( { model | playgrounds = model.playgrounds |> updateListViaId playgrounds }, Cmd.none )
 
 
@@ -534,7 +522,7 @@ viewPlaygroundRoute model playground =
 
 
 
--- TODO remove stuff like images, awards and playgrounds
+-- TODO remove stuff like playgrounds
 
 
 viewAdminRoute : Model -> Html.Html FrontendMsg
@@ -697,6 +685,9 @@ viewPlaygroundAdminRoute model playground =
                     ]
                 , adminMap
                 ]
+
+        viewDeleteButton =
+            cuteButton (RemovePlaygroundLocal playground) <| row [] [ icon Icons.delete, text "Speilplatz löschen" ]
     in
     layout [ width fill, height fill ] <|
         column [ width fill, height fill, spacing 64, padding 22, scrollbarY ]
@@ -707,6 +698,7 @@ viewPlaygroundAdminRoute model playground =
              , column [ spacing 16, width fill ] <|
                 (List.map viewAwardItemAdmin playground.awards ++ [ addAwardButton ])
              , adminMapWithLocation
+             , viewDeleteButton
              ]
                 |> List.intersperse (el [ width fill, height (px 2), Background.color secondary ] <| none)
             )
@@ -724,24 +716,6 @@ removeButton msg =
         { onPress = Just <| wrapInAreYouSure "Bist du dir sicher, dass du das wirklich löschen willst?" <| msg
         , label = icon Icons.delete
         }
-
-
-replaceInList : List a -> Int -> a -> List a
-replaceInList list index a =
-    list
-        |> List.indexedMap (\i x -> ( i, x ))
-        |> Dict.fromList
-        |> Dict.insert index a
-        |> Dict.values
-
-
-removeInList : List a -> Int -> List a
-removeInList list index =
-    list
-        |> List.indexedMap (\i x -> ( i, x ))
-        |> Dict.fromList
-        |> Dict.remove index
-        |> Dict.values
 
 
 initAward : Seeds -> ( Award, Seeds )
@@ -770,43 +744,6 @@ playgroundMarker playground =
     }
 
 
-cuteInput label text_ msg =
-    Input.text
-        [ Border.width 0
-        , Background.color secondary
-        , paddingEach { top = 16, left = 10, right = 10, bottom = 12 }
-        , Border.rounded 16
-        , width fill
-        , inFront <| cuteLabel label
-        ]
-        { text = text_
-        , onChange = msg
-        , placeholder = Nothing -- Just <| Input.placeholder [] none
-        , label = Input.labelHidden label
-        }
-
-
-cuteLabel label =
-    el [ Font.size 16, Background.color white, moveUp 10, centerX, paddingXY 6 2, Border.rounded 8 ] <| text label
-
-
-cuteInputMultiline label text_ msg =
-    Input.multiline
-        [ Border.width 0
-        , Background.color secondary
-        , paddingEach { top = 16, left = 10, right = 10, bottom = 12 }
-        , Border.rounded 16
-        , width fill
-        , inFront <| cuteLabel label
-        ]
-        { text = text_
-        , onChange = msg
-        , placeholder = Nothing -- Just <| Input.placeholder [] none
-        , label = Input.labelHidden label
-        , spellcheck = True
-        }
-
-
 viewTitle label =
     paragraph [ spacing 16 ]
         [ el [ Font.bold, Font.size 32, Font.color secondaryDark ] <| text label
@@ -827,8 +764,18 @@ viewImageStrip images =
                 List.map imagePreview images
 
 
-wrapInAreYouSure label msg =
-    OpenModal <| AreYouSureModal label <| msg
+
+-- Ports
+
+
+port geoLocationUpdated : (String -> msg) -> Sub msg
+
+
+port geoLocationError : (String -> msg) -> Sub msg
+
+
+
+-- Subscriptions
 
 
 subscriptions _ =
@@ -851,6 +798,58 @@ subscriptions _ =
 
 
 -- Elements
+
+
+cuteInput label text_ msg =
+    Input.text
+        [ Border.width 0
+        , Background.color secondary
+        , paddingEach { top = 16, left = 10, right = 10, bottom = 12 }
+        , Border.rounded 16
+        , width fill
+        , inFront <| cuteLabel label
+        ]
+        { text = text_
+        , onChange = msg
+        , placeholder = Just <| Input.placeholder [] <| text "..."
+        , label = Input.labelHidden label
+        }
+
+
+cuteLabel label =
+    el [ Font.size 16, Background.color white, moveUp 10, centerX, paddingXY 6 2, Border.rounded 8 ] <| text label
+
+
+cuteInputMultiline label text_ msg =
+    Input.multiline
+        [ Border.width 0
+        , Background.color secondary
+        , paddingEach { top = 16, left = 10, right = 10, bottom = 12 }
+        , Border.rounded 16
+        , width fill
+        , inFront <| cuteLabel label
+        ]
+        { text = text_
+        , onChange = msg
+        , placeholder = Just <| Input.placeholder [] <| text "..."
+        , label = Input.labelHidden label
+        , spellcheck = True
+        }
+
+
+cuteButton onPress label =
+    Input.button
+        [ width fill
+        , Border.rounded 16
+        , Background.color secondary
+        , width fill
+        , height (px 64)
+        , paddingXY 24 0
+        , Font.color secondaryDark
+        ]
+        { onPress = Just onPress
+        , label = el [ centerX, centerY ] <| label
+        }
 
 
 linePlaceholder space =
@@ -1215,6 +1214,10 @@ displayIf boolean element =
 -- Utility
 
 
+wrapInAreYouSure label msg =
+    OpenModal <| AreYouSureModal label <| msg
+
+
 encodeLeafletMapConfig : LeafletMapConfig -> E.Value
 encodeLeafletMapConfig value =
     E.object
@@ -1412,9 +1415,3 @@ port online : (Bool -> msg) -> Sub msg
 
 
 port pouchDB : String -> Cmd msg
-
-
-port geoLocationUpdated : (String -> msg) -> Sub msg
-
-
-port geoLocationError : (String -> msg) -> Sub msg

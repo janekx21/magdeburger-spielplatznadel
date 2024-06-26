@@ -126,19 +126,19 @@ update msg model =
 
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> Model -> ( Model, Cmd BackendMsg )
 updateFromFrontend sessionId clientId msg model =
+    let
+        others =
+            model.connected |> Set.remove clientId |> Set.toList
+    in
     case msg of
         NoOpToBackend ->
             ( model, Cmd.none )
 
         UploadPlayground playground ->
-            let
-                others =
-                    model.connected |> Set.remove clientId |> Set.toList
-            in
             ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, broadcastTo others <| PlaygroundUploaded playground )
 
-        FetchPlaygrounds ->
-            ( model, Lamdera.sendToFrontend clientId <| PlaygroundsFetched model.playgrounds )
+        RemovePlayground playground ->
+            ( { model | playgrounds = model.playgrounds |> removeItemViaId playground }, broadcastTo others <| PlaygroundRemoved playground )
 
 
 broadcastTo clientIds msg =

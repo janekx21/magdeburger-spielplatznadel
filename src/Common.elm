@@ -37,5 +37,23 @@ removeItemViaId item list =
         |> Dict.values
 
 
+replaceInList : List a -> Int -> a -> List a
+replaceInList list index a =
+    list
+        |> List.indexedMap (\i x -> ( i, x ))
+        |> Dict.fromList
+        |> Dict.insert index a
+        |> Dict.values
+
+
+removeInList : List a -> Int -> List a
+removeInList list index =
+    list
+        |> List.indexedMap (\i x -> ( i, x ))
+        |> Dict.fromList
+        |> Dict.remove index
+        |> Dict.values
+
+
 defaultMarkerIcon =
     { url = "/assets/images/playground_icon_1.png", shadowUrl = "/assets/images/playground_icon_1_shadow.png" }

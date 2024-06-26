@@ -132,6 +132,7 @@ type FrontendMsg
     | UpdatePlayground Playground
     | AddAward Playground
     | AddPlayground
+    | RemovePlaygroundLocal Playground
     | GeoLocationUpdated (Maybe GeoLocation)
 
 
@@ -157,7 +158,7 @@ type FrontendMsg
 type ToBackend
     = NoOpToBackend
     | UploadPlayground Playground
-    | FetchPlaygrounds
+    | RemovePlayground Playground
 
 
 type BackendMsg
@@ -169,4 +170,5 @@ type BackendMsg
 type ToFrontend
     = NoOpToFrontend
     | PlaygroundUploaded Playground
+    | PlaygroundRemoved Playground -- TODO can this be added to playground uploaded?
     | PlaygroundsFetched (List Playground)
