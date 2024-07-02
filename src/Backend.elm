@@ -1,6 +1,8 @@
 module Backend exposing (..)
 
 import Common exposing (..)
+import Dict
+import IdSet
 import Lamdera exposing (ClientId, SessionId)
 import Set
 import Time
@@ -23,7 +25,7 @@ app =
         , subscriptions =
             \_ ->
                 Sub.batch
-                    [ Lamdera.onConnect (\_ clientId -> ClientConnected clientId)
+                    [ Lamdera.onConnect ClientConnected
                     , Lamdera.onDisconnect (\_ clientId -> ClientDisconnected clientId)
                     ]
         }
@@ -31,7 +33,7 @@ app =
 
 init : ( Model, Cmd BackendMsg )
 init =
-    ( { playgrounds = seedsPlaygrounds, connected = Set.empty }
+    ( { playgrounds = IdSet.fromList seedsPlaygrounds, connected = Set.empty, users = IdSet.empty }
     , Cmd.none
     )
 
@@ -117,8 +119,28 @@ update msg model =
         NoOpBackendMsg ->
             ( model, Cmd.none )
 
-        ClientConnected clientId ->
-            ( { model | connected = model.connected |> Set.insert clientId }, Lamdera.sendToFrontend clientId <| PlaygroundsFetched model.playgrounds )
+        ClientConnected sessionId clientId ->
+            let
+                possibleUser =
+                    model.users |> IdSet.toList |> List.filter (\u -> u.sessions |> Set.member sessionId) |> List.head
+
+                -- TOOD was machen? Soll die UserId auf dem client generiert werden?
+                -- Wie wird die session erstellt?
+                -- Hier oder wo anders?
+                -- user =
+                --     case possibleUser of
+                --         Just user_ ->
+                --             user_
+                --         Nothing ->
+                --             {
+                --             }
+            in
+            ( { model | connected = model.connected |> Set.insert clientId }
+            , Lamdera.sendToFrontend clientId <|
+                PlaygroundsFetched <|
+                    IdSet.toList <|
+                        model.playgrounds
+            )
 
         ClientDisconnected clientId ->
             ( { model | connected = model.connected |> Set.remove clientId }, Cmd.none )
@@ -135,10 +157,10 @@ updateFromFrontend sessionId clientId msg model =
             ( model, Cmd.none )
 
         UploadPlayground playground ->
-            ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, broadcastTo others <| PlaygroundUploaded playground )
+            ( { model | playgrounds = model.playgrounds |> IdSet.insert playground }, broadcastTo others <| PlaygroundUploaded playground )
 
         RemovePlayground playground ->
-            ( { model | playgrounds = model.playgrounds |> removeItemViaId playground }, broadcastTo others <| PlaygroundRemoved playground )
+            ( { model | playgrounds = model.playgrounds |> IdSet.remove playground }, broadcastTo others <| PlaygroundRemoved playground )
 
 
 broadcastTo clientIds msg =

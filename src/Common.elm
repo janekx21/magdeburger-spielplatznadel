@@ -2,6 +2,7 @@ module Common exposing (..)
 
 import Dict
 import Types exposing (Guid)
+import UUID
 
 
 updateListItemViaId : { a | id : Guid } -> List { a | id : Guid } -> List { a | id : Guid }

@@ -2,7 +2,9 @@ module Types exposing (..)
 
 import Browser exposing (UrlRequest)
 import Browser.Navigation as Nav
-import Lamdera exposing (ClientId)
+import Dict exposing (Dict)
+import IdSet exposing (..)
+import Lamdera exposing (ClientId, SessionId)
 import Set exposing (Set)
 import Time exposing (Posix)
 import UUID
@@ -17,7 +19,7 @@ type alias FrontendModel =
     { key : Nav.Key
     , route : Route
     , online : Bool
-    , playgrounds : List Playground
+    , playgrounds : IdSet Playground
     , currentGeoLocation : Maybe GeoLocation -- TODO dont use this as the maps view location. this could snap back at any time
     , modal : Maybe Modal
     , seeds : UUID.Seeds
@@ -111,8 +113,16 @@ type alias Guid =
 
 
 type alias BackendModel =
-    { playgrounds : List Playground
+    { playgrounds : IdSet Playground
     , connected : Set ClientId
+    , users : IdSet User
+    }
+
+
+type alias User =
+    { id : Guid
+    , awards : List Award
+    , sessions : Set SessionId
     }
 
 
@@ -163,7 +173,7 @@ type ToBackend
 
 type BackendMsg
     = NoOpBackendMsg
-    | ClientConnected ClientId
+    | ClientConnected SessionId ClientId
     | ClientDisconnected ClientId
 
 

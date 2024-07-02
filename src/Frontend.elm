@@ -12,6 +12,7 @@ import Element.Input as Input
 import Html
 import Html.Attributes
 import Html.Events
+import IdSet exposing (..)
 import Json.Decode as D
 import Json.Encode as E
 import Lamdera
@@ -61,7 +62,7 @@ init url key =
       , currentGeoLocation = Nothing
       , modal = Nothing
       , seeds = UUID.Seeds (Random.initialSeed 1) (Random.initialSeed 2) (Random.initialSeed 3) (Random.initialSeed 4) -- TODO random generate seeds :>
-      , playgrounds = []
+      , playgrounds = IdSet.empty
       }
     , Cmd.none
     )
@@ -132,7 +133,7 @@ update msg model =
             ( { model | modal = Nothing }, Cmd.none )
 
         UpdatePlayground playground ->
-            ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, Lamdera.sendToBackend <| UploadPlayground playground )
+            ( { model | playgrounds = model.playgrounds |> IdSet.insert playground }, Lamdera.sendToBackend <| UploadPlayground playground )
 
         AddPlayground ->
             let
@@ -140,16 +141,14 @@ update msg model =
                     initPlayground model.seeds
             in
             ( { model
-                | playgrounds =
-                    model.playgrounds
-                        ++ [ playground ]
+                | playgrounds = model.playgrounds |> IdSet.insert playground
                 , seeds = seeds
               }
             , Nav.pushUrl model.key <| "/admin/playground/" ++ playground.id
             )
 
         RemovePlaygroundLocal playground ->
-            ( { model | playgrounds = removeItemViaId playground model.playgrounds }, Cmd.batch [ Nav.back model.key 1, Lamdera.sendToBackend <| RemovePlayground playground ] )
+            ( { model | playgrounds = IdSet.remove playground model.playgrounds }, Cmd.batch [ Nav.back model.key 1, Lamdera.sendToBackend <| RemovePlayground playground ] )
 
         AddAward playground ->
             let
@@ -160,7 +159,7 @@ update msg model =
                     { playground | awards = playground.awards |> updateListItemViaId award }
             in
             ( { model
-                | playgrounds = model.playgrounds |> updateListItemViaId p2
+                | playgrounds = model.playgrounds |> IdSet.insert p2
                 , seeds = seeds
               }
             , Cmd.none
@@ -184,20 +183,17 @@ update msg model =
 
 initPlayground : Seeds -> ( Playground, Seeds )
 initPlayground s1 =
-    let
-        ( id, seeds ) =
-            generateGuid s1
-    in
-    ( { id = id
-      , awards = []
-      , location = magdeburg
-      , description = ""
-      , title = ""
-      , images = []
-      , markerIcon = defaultMarkerIcon
-      }
-    , seeds
-    )
+    assignId
+        ( { id = nilId
+          , awards = []
+          , location = magdeburg
+          , description = ""
+          , title = ""
+          , images = []
+          , markerIcon = defaultMarkerIcon
+          }
+        , s1
+        )
 
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
@@ -207,13 +203,13 @@ updateFromBackend msg model =
             ( model, Cmd.none )
 
         PlaygroundUploaded playground ->
-            ( { model | playgrounds = model.playgrounds |> updateListItemViaId playground }, Cmd.none )
+            ( { model | playgrounds = model.playgrounds |> IdSet.insert playground }, Cmd.none )
 
         PlaygroundRemoved playground ->
-            ( { model | playgrounds = model.playgrounds |> removeItemViaId playground }, Cmd.none )
+            ( { model | playgrounds = model.playgrounds |> IdSet.remove playground }, Cmd.none )
 
         PlaygroundsFetched playgrounds ->
-            ( { model | playgrounds = model.playgrounds |> updateListViaId playgrounds }, Cmd.none )
+            ( { model | playgrounds = model.playgrounds |> IdSet.union (IdSet.fromList playgrounds) }, Cmd.none )
 
 
 
@@ -234,7 +230,7 @@ view model =
                 PlaygroundRoute guid ->
                     let
                         playground =
-                            model.playgrounds |> List.filter (\p -> p.id == guid) |> List.head
+                            model.playgrounds |> IdSet.toList |> List.filter (\p -> p.id == guid) |> List.head
                     in
                     case playground of
                         Just p ->
@@ -261,7 +257,7 @@ view model =
                 PlaygroundAdminRoute guid ->
                     let
                         playground =
-                            model.playgrounds |> List.filter (\p -> p.id == guid) |> List.head
+                            model.playgrounds |> IdSet.toList |> List.filter (\p -> p.id == guid) |> List.head
                     in
                     case playground of
                         Just p ->
@@ -361,10 +357,10 @@ viewMainRoute model =
         playgrounds =
             case model.currentGeoLocation of
                 Just geoLocation ->
-                    model.playgrounds |> List.sortBy (\p -> locationDistanceInKilometers p.location geoLocation.location)
+                    model.playgrounds |> IdSet.toList |> List.sortBy (\p -> locationDistanceInKilometers p.location geoLocation.location)
 
                 Nothing ->
-                    model.playgrounds
+                    model.playgrounds |> IdSet.toList
     in
     layout
         [ width fill
@@ -424,6 +420,7 @@ viewMainRoute model =
             ]
 
 
+viewAwardsRoute : Model -> Html.Html msg
 viewAwardsRoute model =
     let
         bound =
@@ -444,8 +441,9 @@ viewAwardsRoute model =
             ]
 
 
+allAwards : Model -> List Award
 allAwards model =
-    model.playgrounds |> List.concatMap .awards
+    model.playgrounds |> IdSet.toList |> List.concatMap .awards
 
 
 viewAwardList awards =
@@ -554,7 +552,7 @@ viewAdminRoute model =
                 ]
             , column
                 [ spacing 16, width fill ]
-                ((model.playgrounds |> List.map playgroundAdminItem) ++ [ addPlaygroundButton ])
+                ((model.playgrounds |> IdSet.toList |> List.map playgroundAdminItem) ++ [ addPlaygroundButton ])
             ]
 
 
@@ -720,20 +718,17 @@ removeButton msg =
 
 initAward : Seeds -> ( Award, Seeds )
 initAward s1 =
-    let
-        ( id, s2 ) =
-            generateGuid s1
-    in
-    ( { title = ""
-      , id = id
-      , image =
-            { url = ""
-            , description = ""
-            }
-      , found = Nothing
-      }
-    , s2
-    )
+    assignId
+        ( { title = ""
+          , id = nilId
+          , image =
+                { url = ""
+                , description = ""
+                }
+          , found = Nothing
+          }
+        , s1
+        )
 
 
 playgroundMarker : Playground -> Marker
@@ -1359,12 +1354,6 @@ locationDistanceInKilometers loc1 loc2 =
             2 * atan2 (sqrt a) (sqrt (1 - a))
     in
     earthRadiusInKilometers * c
-
-
-generateGuid : UUID.Seeds -> ( Guid, UUID.Seeds )
-generateGuid seeds =
-    UUID.step seeds
-        |> Tuple.mapFirst (UUID.toRepresentation UUID.Compact)
 
 
 
