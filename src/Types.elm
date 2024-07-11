@@ -2,11 +2,9 @@ module Types exposing (..)
 
 import Browser exposing (UrlRequest)
 import Browser.Navigation as Nav
-import Dict exposing (Dict)
 import IdSet exposing (..)
 import Lamdera exposing (ClientId, SessionId)
 import Set exposing (Set)
-import Time exposing (Posix)
 import UUID
 import Url exposing (Url)
 
@@ -23,6 +21,7 @@ type alias FrontendModel =
     , currentGeoLocation : Maybe GeoLocation -- TODO dont use this as the maps view location. this could snap back at any time
     , modal : Maybe Modal
     , seeds : UUID.Seeds
+    , user : Maybe User
     }
 
 
@@ -38,6 +37,8 @@ type Route
     | NewAwardRoute Guid
     | AdminRoute
     | PlaygroundAdminRoute Guid
+    | MyUserRoute
+    | LoginRoute Guid
 
 
 type alias Playground =
@@ -55,7 +56,6 @@ type alias Award =
     { id : Guid
     , title : String
     , image : Image
-    , found : Maybe Posix
     }
 
 
@@ -121,8 +121,9 @@ type alias BackendModel =
 
 type alias User =
     { id : Guid
-    , awards : List Award
-    , sessions : Set SessionId
+    , awards : IdSet Award
+
+    -- , sessions : Set SessionId
     }
 
 
@@ -144,6 +145,8 @@ type FrontendMsg
     | AddPlayground
     | RemovePlaygroundLocal Playground
     | GeoLocationUpdated (Maybe GeoLocation)
+    | StorageLoaded (Maybe String)
+    | LoginWithId Guid
 
 
 
@@ -169,6 +172,7 @@ type ToBackend
     = NoOpToBackend
     | UploadPlayground Playground
     | RemovePlayground Playground
+    | Collect Guid Guid
 
 
 type BackendMsg
@@ -182,3 +186,4 @@ type ToFrontend
     | PlaygroundUploaded Playground
     | PlaygroundRemoved Playground -- TODO can this be added to playground uploaded?
     | PlaygroundsFetched (List Playground)
+    | UserUpdated User

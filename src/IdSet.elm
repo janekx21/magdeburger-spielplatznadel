@@ -1,4 +1,4 @@
-module IdSet exposing (HasId, IdSet, SeedPair, assignId, empty, fromList, insert, nilId, remove, toList, union)
+module IdSet exposing (HasId, IdSet, SeedPair, assignId, empty, fromList, generateId, get, getOrInsert, insert, isEmpty, member, nilId, remove, toList, union)
 
 import Dict exposing (Dict)
 import UUID
@@ -51,9 +51,24 @@ empty =
     IdSet <| Dict.empty
 
 
+isEmpty : IdSet a -> Bool
+isEmpty (IdSet dict) =
+    Dict.isEmpty dict
+
+
 insert : HasId a -> IdSet (HasId a) -> IdSet (HasId a)
 insert item (IdSet dict) =
     dict |> Dict.insert item.id item |> IdSet
+
+
+getOrInsert : Guid -> HasId a -> IdSet (HasId a) -> ( IdSet (HasId a), HasId a )
+getOrInsert id item (IdSet dict) =
+    case dict |> Dict.get id of
+        Just i ->
+            ( IdSet dict, i )
+
+        Nothing ->
+            ( dict |> Dict.insert item.id item |> IdSet, item )
 
 
 union : IdSet (HasId a) -> IdSet (HasId a) -> IdSet (HasId a)
@@ -64,6 +79,16 @@ union (IdSet a) (IdSet b) =
 remove : HasId a -> IdSet (HasId a) -> IdSet (HasId a)
 remove item (IdSet dict) =
     dict |> Dict.remove item.id |> IdSet
+
+
+get : Guid -> IdSet (HasId a) -> Maybe (HasId a)
+get guid (IdSet dict) =
+    dict |> Dict.get guid
+
+
+member : HasId a -> IdSet (HasId a) -> Bool
+member item (IdSet dict) =
+    Dict.member item.id dict
 
 
 toList : IdSet (HasId a) -> List (HasId a)

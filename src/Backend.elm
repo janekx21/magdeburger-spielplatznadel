@@ -1,11 +1,9 @@
 module Backend exposing (..)
 
 import Common exposing (..)
-import Dict
 import IdSet
 import Lamdera exposing (ClientId, SessionId)
 import Set
-import Time
 import Types exposing (..)
 
 
@@ -49,7 +47,6 @@ seedsPlaygrounds =
       , awards =
             [ { title = "Dino"
               , id = "4a98c645-4784-4a6f-b27d-6620d6c1c1eb"
-              , found = Just <| Time.millisToPosix 0
               , image =
                     { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
                     , description = "Blauer Dino"
@@ -57,7 +54,6 @@ seedsPlaygrounds =
               }
             , { title = "Dino 2"
               , id = "21f2cd1e-a7f8-46be-8129-358e9c4d3c49"
-              , found = Nothing
               , image =
                     { url = "https://stylegreen-shop.cstatic.io/media/image/03/e2/87/styleGREEN_Tierpiktogramm_Dino_Nino_Moostier.png"
                     , description = "Grüner Dino"
@@ -102,7 +98,6 @@ seedsPlaygrounds =
       , awards =
             [ { title = "Dino 3"
               , id = "93ff3df5-970c-4a7b-8064-57904e4c3003"
-              , found = Nothing
               , image =
                     { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
                     , description = "Dino Stempel"
@@ -119,22 +114,21 @@ update msg model =
         NoOpBackendMsg ->
             ( model, Cmd.none )
 
-        ClientConnected sessionId clientId ->
-            let
-                possibleUser =
-                    model.users |> IdSet.toList |> List.filter (\u -> u.sessions |> Set.member sessionId) |> List.head
-
-                -- TOOD was machen? Soll die UserId auf dem client generiert werden?
-                -- Wie wird die session erstellt?
-                -- Hier oder wo anders?
-                -- user =
-                --     case possibleUser of
-                --         Just user_ ->
-                --             user_
-                --         Nothing ->
-                --             {
-                --             }
-            in
+        ClientConnected _ clientId ->
+            -- let
+            -- possibleUser =
+            --     model.users |> IdSet.toList |> List.filter (\u -> u.sessions |> Set.member sessionId) |> List.head
+            -- TOOD was machen? Soll die UserId auf dem client generiert werden?
+            -- Wie wird die session erstellt?
+            -- Hier oder wo anders?
+            -- user =
+            --     case possibleUser of
+            --         Just user_ ->
+            --             user_
+            --         Nothing ->
+            --             {
+            --             }
+            -- in
             ( { model | connected = model.connected |> Set.insert clientId }
             , Lamdera.sendToFrontend clientId <|
                 PlaygroundsFetched <|
@@ -147,7 +141,7 @@ update msg model =
 
 
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> Model -> ( Model, Cmd BackendMsg )
-updateFromFrontend sessionId clientId msg model =
+updateFromFrontend _ clientId msg model =
     let
         others =
             model.connected |> Set.remove clientId |> Set.toList
@@ -161,6 +155,36 @@ updateFromFrontend sessionId clientId msg model =
 
         RemovePlayground playground ->
             ( { model | playgrounds = model.playgrounds |> IdSet.remove playground }, broadcastTo others <| PlaygroundRemoved playground )
+
+        Collect itemId userId ->
+            let
+                maybeAward =
+                    allAwards model.playgrounds
+                        |> List.filter (\a -> a.id == itemId)
+                        |> List.head
+
+                ( users, user ) =
+                    model.users |> IdSet.getOrInsert userId (initUser userId)
+            in
+            case maybeAward of
+                Just award ->
+                    let
+                        newUser =
+                            { user | awards = user.awards |> IdSet.insert award }
+                    in
+                    ( { model
+                        | users = users |> IdSet.insert newUser
+                      }
+                    , Lamdera.sendToFrontend clientId <| UserUpdated newUser
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+
+initUser : Guid -> User
+initUser id =
+    { id = id, awards = IdSet.empty }
 
 
 broadcastTo clientIds msg =

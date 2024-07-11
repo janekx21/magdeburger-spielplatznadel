@@ -12,14 +12,15 @@ import Element.Input as Input
 import Html
 import Html.Attributes
 import Html.Events
-import IdSet exposing (..)
+import IdSet
 import Json.Decode as D
 import Json.Encode as E
 import Lamdera
 import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
+import QRCode
 import Random
-import Time
+import Svg.Attributes
 import Types exposing (..)
 import UUID exposing (Seeds)
 import Url
@@ -63,6 +64,7 @@ init url key =
       , modal = Nothing
       , seeds = UUID.Seeds (Random.initialSeed 1) (Random.initialSeed 2) (Random.initialSeed 3) (Random.initialSeed 4) -- TODO random generate seeds :>
       , playgrounds = IdSet.empty
+      , user = Nothing
       }
     , Cmd.none
     )
@@ -84,6 +86,8 @@ routeParser =
         , UP.map NewAwardRoute (UP.s "new-award" </> UP.string)
         , UP.map AwardsRoute (UP.s "award")
         , UP.map AdminRoute (UP.s "admin")
+        , UP.map MyUserRoute (UP.s "my-user")
+        , UP.map LoginRoute (UP.s "login" </> UP.string)
         , UP.map PlaygroundAdminRoute (UP.s "admin" </> UP.s "playground" </> UP.string)
         ]
 
@@ -113,9 +117,29 @@ update msg model =
         UrlChanged url ->
             case model.modal of
                 Nothing ->
-                    ( { model | route = parseUrl url }
-                    , Cmd.none
-                    )
+                    let
+                        route =
+                            parseUrl url
+                    in
+                    case model.user of
+                        Just { id } ->
+                            let
+                                collectCmd =
+                                    case route of
+                                        NewAwardRoute guid ->
+                                            Lamdera.sendToBackend <| Collect guid id
+
+                                        _ ->
+                                            Cmd.none
+                            in
+                            ( { model | route = route }
+                            , collectCmd
+                            )
+
+                        Nothing ->
+                            ( { model | route = route }
+                            , Cmd.none
+                            )
 
                 Just _ ->
                     -- any url change just closes the modal, the forward cancels out the back navigation
@@ -180,11 +204,26 @@ update msg model =
         GeoLocationUpdated geoLocation ->
             ( { model | currentGeoLocation = geoLocation }, Cmd.none )
 
+        StorageLoaded data ->
+            let
+                ( userId, seeds ) =
+                    case data of
+                        Just id ->
+                            ( id, model.seeds )
+
+                        Nothing ->
+                            IdSet.generateId model.seeds
+            in
+            ( { model | user = Just { id = userId, awards = IdSet.empty }, seeds = seeds }, saveStorage userId )
+
+        LoginWithId guid ->
+            ( { model | user = Just { id = guid, awards = IdSet.empty } }, Nav.replaceUrl model.key "/" )
+
 
 initPlayground : Seeds -> ( Playground, Seeds )
 initPlayground s1 =
-    assignId
-        ( { id = nilId
+    IdSet.assignId
+        ( { id = IdSet.nilId
           , awards = []
           , location = magdeburg
           , description = ""
@@ -210,6 +249,9 @@ updateFromBackend msg model =
 
         PlaygroundsFetched playgrounds ->
             ( { model | playgrounds = model.playgrounds |> IdSet.union (IdSet.fromList playgrounds) }, Cmd.none )
+
+        UserUpdated user ->
+            ( { model | user = Just user }, Cmd.none )
 
 
 
@@ -242,7 +284,7 @@ view model =
                 NewAwardRoute guid ->
                     let
                         award =
-                            model |> allAwards |> List.filter (\a -> a.id == guid) |> List.head
+                            model.playgrounds |> allAwards |> List.filter (\a -> a.id == guid) |> List.head
                     in
                     case award of
                         Just a ->
@@ -266,6 +308,12 @@ view model =
                         Nothing ->
                             Html.text <| "the playground " ++ guid ++ " does not exist"
 
+                MyUserRoute ->
+                    viewMyUser model.user
+
+                LoginRoute guid ->
+                    viewLogin model.user guid
+
         body =
             case model.modal of
                 Nothing ->
@@ -278,6 +326,65 @@ view model =
                     viewAreYouSureModal label msg
     in
     { title = "", body = [ body ] }
+
+
+viewLogin maybeUser userId =
+    layout [ width fill, height fill ] <|
+        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+            [ column [ spacing 24, width fill, centerY ] <|
+                case maybeUser of
+                    Nothing ->
+                        [ column [ width fill, spacing 16 ]
+                            [ viewTitle "Du kannst jetzt als der Gescannte Nutzer loslegen."
+                            , cuteButton (LoginWithId userId) <| text "Loslegen"
+                            ]
+                        ]
+
+                    Just user ->
+                        [ column [ width fill, spacing 16 ]
+                            [ viewTitle "Du hast bereites einen Nutzer mit der folgenden ID. Willst du den überschreiben?"
+                            , el [ Background.color secondaryDark, padding 8, Border.rounded 16, Font.color white, Font.size 14, centerX ] <| text user.id
+                            , cuteButton (LoginWithId userId) <| text "Überschreiben"
+                            ]
+                        ]
+            ]
+
+
+viewMyUser maybeUser =
+    let
+        userQRCode user =
+            el [ width fill, height fill ] <|
+                qrCodeView ("https://magdeburger-spielplatznadel-develop.lamdera.app/login/" ++ user.id)
+    in
+    layout [ width fill, height fill ] <|
+        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+            [ column [ spacing 24, width fill ]
+                [ viewTitle "Dein Account"
+                , viewParapraph "Hier findest du alles wichtige über deinen Account. Du kannst dich über den QR-Code auch wo anders anmelden."
+                ]
+            , case maybeUser of
+                Nothing ->
+                    text "Du hast keinen Benutzer"
+
+                Just user ->
+                    column [ width fill ]
+                        [ userQRCode user
+                        , el [ Background.color secondaryDark, padding 8, Border.rounded 16, Font.color white, Font.size 14, centerX ] <| text user.id
+                        ]
+            ]
+
+
+qrCodeView : String -> Element msg
+qrCodeView message =
+    QRCode.fromString message
+        |> Result.map
+            (QRCode.toSvg
+                [-- Svg.Attributes.width "100px"
+                 -- , Svg.Attributes.height "100px"
+                ]
+            )
+        |> Result.withDefault (Html.text "Error while encoding to QRCode.")
+        |> html
 
 
 viewImageModal i =
@@ -381,21 +488,36 @@ viewMainRoute model =
                 (playgrounds |> List.map (playgroundItem (Maybe.map .location model.currentGeoLocation)))
             , column
                 [ spacing 16, width fill ]
-                [ el [ Font.bold ] <| text "debuggin menu"
-                , link []
+                [ link
+                    [ padding 16
+                    , Background.color secondaryDark
+                    , Border.rounded 16
+                    , Font.color white
+                    , width fill
+                    , Font.center
+                    ]
+                    { url = "/my-user"
+                    , label =
+                        text "Dein Account"
+                    }
+                , link
+                    [ padding 16
+                    , Background.color secondaryDark
+                    , Border.rounded 16
+                    , Font.color white
+                    , width fill
+                    , Font.center
+                    ]
                     { url = "/admin"
                     , label =
-                        el
-                            [ padding 16
-                            , Background.color secondaryDark
-                            , Border.rounded 16
-                            , Font.color white
-                            ]
-                        <|
-                            text "Admin Seite"
+                        text "Admin Seite"
                     }
+                ]
+            , column
+                [ spacing 16, width fill ]
+                [ el [ Font.bold ] <| text "debuggin menu"
                 , column [ spacing 8, width fill ]
-                    (allAwards model
+                    (allAwards model.playgrounds
                         |> List.map
                             (\{ id, title } ->
                                 link [ width fill ]
@@ -437,16 +559,12 @@ viewAwardsRoute model =
                 [ viewTitle "Stempelbuch"
                 , viewParapraph "Hier findest du alle eingetragenen und austehenden Stempel."
                 ]
-            , viewAwardList <| allAwards model
+            , viewAwardList (model.user |> Maybe.map .awards |> Maybe.withDefault IdSet.empty) <| allAwards model.playgrounds
             ]
 
 
-allAwards : Model -> List Award
-allAwards model =
-    model.playgrounds |> IdSet.toList |> List.concatMap .awards
-
-
-viewAwardList awards =
+viewAwardList : IdSet.IdSet Award -> List Award -> Element msg
+viewAwardList found awards =
     let
         ( offX, offY ) =
             ( 12, 12 )
@@ -458,7 +576,11 @@ viewAwardList awards =
         row
             [ width fill, style "flex-wrap" "wrap", style "gap" "32px", justifyCenter ]
         <|
-            List.map (viewAward offX offY) awards
+            List.map (\award -> viewAward offX offY (IdSet.member award found) award) awards
+
+
+
+-- TODO map the user to the awards collected state
 
 
 viewNewAwardRoute model award =
@@ -499,7 +621,7 @@ viewNewAwardRoute model award =
                             }
                         ]
                 ]
-                [ el [ centerX, paddingXY 0 70, scale 1.7 ] <| viewAward 8 4 { award | found = Just <| Time.millisToPosix 0 }
+                [ el [ centerX, paddingXY 0 70, scale 1.7 ] <| viewAward 8 4 True award
                 ]
             ]
 
@@ -514,7 +636,7 @@ viewPlaygroundRoute model playground =
                 , viewParapraph playground.description
                 ]
             , viewImageStrip playground.images
-            , column [ spacing 16, width fill ] [ viewAwardList playground.awards ]
+            , column [ spacing 16, width fill ] [ viewAwardList (model.user |> Maybe.map .awards |> Maybe.withDefault IdSet.empty) playground.awards ]
             , mapCollapsed playground
             ]
 
@@ -617,8 +739,8 @@ viewPlaygroundAdminRoute model playground =
                 , inFront <| el [ moveUp 18, moveLeft 18 ] <| removeButton (UpdatePlayground { playground | awards = removeItemViaId award playground.awards })
                 ]
                 [ row [ width fill, spaceEvenly ]
-                    [ viewAward 8 8 { award | found = Just <| Time.millisToPosix 0 }
-                    , viewAward 8 8 { award | found = Nothing }
+                    [ viewAward 8 8 True award
+                    , viewAward 8 8 False award
                     ]
                 , cuteInput "Titel" award.title <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | title = v } }
                 , cuteInput "Bild URL" award.image.url <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | image = { description = award.image.description, url = v } } }
@@ -718,14 +840,13 @@ removeButton msg =
 
 initAward : Seeds -> ( Award, Seeds )
 initAward s1 =
-    assignId
+    IdSet.assignId
         ( { title = ""
-          , id = nilId
+          , id = IdSet.nilId
           , image =
                 { url = ""
                 , description = ""
                 }
-          , found = Nothing
           }
         , s1
         )
@@ -769,6 +890,12 @@ port geoLocationUpdated : (String -> msg) -> Sub msg
 port geoLocationError : (String -> msg) -> Sub msg
 
 
+port storageLoaded : (Maybe String -> msg) -> Sub msg
+
+
+port saveStorage : String -> Cmd msg
+
+
 
 -- Subscriptions
 
@@ -788,6 +915,7 @@ subscriptions _ =
     Sub.batch
         [ geoLocationUpdated <| (D.decodeString decodeGeoLocation >> Result.toMaybe >> GeoLocationUpdated)
         , geoLocationError <| \_ -> GeoLocationUpdated Nothing
+        , storageLoaded StorageLoaded
         ]
 
 
@@ -1078,14 +1206,14 @@ awardPlaceholder got offX offY new =
         none
 
 
-viewAward : Float -> Float -> Award -> Element msg
-viewAward offX offY award =
+viewAward : Float -> Float -> Bool -> Award -> Element msg
+viewAward offX offY found award =
     let
         new =
             False
 
         got =
-            not <| award.found == Nothing
+            found
 
         awardEl =
             el

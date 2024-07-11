@@ -1,8 +1,13 @@
 module Common exposing (..)
 
 import Dict
-import Types exposing (Guid)
-import UUID
+import IdSet exposing (IdSet)
+import Types exposing (Award, Guid, Playground)
+
+
+allAwards : IdSet Playground -> List Award
+allAwards playgrounds =
+    playgrounds |> IdSet.toList |> List.concatMap .awards
 
 
 updateListItemViaId : { a | id : Guid } -> List { a | id : Guid } -> List { a | id : Guid }
