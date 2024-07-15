@@ -76,9 +76,9 @@ union (IdSet a) (IdSet b) =
     Dict.union a b |> IdSet
 
 
-remove : HasId a -> IdSet (HasId a) -> IdSet (HasId a)
-remove item (IdSet dict) =
-    dict |> Dict.remove item.id |> IdSet
+remove : Guid -> IdSet (HasId a) -> IdSet (HasId a)
+remove id (IdSet dict) =
+    dict |> Dict.remove id |> IdSet
 
 
 get : Guid -> IdSet (HasId a) -> Maybe (HasId a)

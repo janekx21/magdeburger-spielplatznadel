@@ -13,6 +13,7 @@ import Html
 import Html.Attributes
 import Html.Events
 import IdSet
+import Image
 import Json.Decode as D
 import Json.Encode as E
 import Lamdera
@@ -20,7 +21,6 @@ import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
 import QRCode
 import Random
-import Svg.Attributes
 import Types exposing (..)
 import UUID exposing (Seeds)
 import Url
@@ -56,40 +56,23 @@ init url key =
     let
         route =
             parseUrl url
+
+        seed =
+            Random.independentSeed
     in
     ( { key = key
       , route = route
       , online = True
       , currentGeoLocation = Nothing
       , modal = Nothing
-      , seeds = UUID.Seeds (Random.initialSeed 1) (Random.initialSeed 2) (Random.initialSeed 3) (Random.initialSeed 4) -- TODO random generate seeds :>
+
+      -- the seeds are just a placeholder that will be overriten as soon as possible
+      , seeds = UUID.Seeds (Random.initialSeed 1) (Random.initialSeed 2) (Random.initialSeed 3) (Random.initialSeed 4)
       , playgrounds = IdSet.empty
       , user = Nothing
       }
-    , Cmd.none
+    , Random.generate SetSeed (Random.map4 UUID.Seeds seed seed seed seed)
     )
-
-
-magdeburg =
-    { lat = 52.131667, lng = 11.639167 }
-
-
-parseUrl url =
-    UP.parse routeParser url |> Maybe.withDefault MainRoute
-
-
-routeParser : Parser (Route -> a) a
-routeParser =
-    oneOf
-        [ UP.map MainRoute UP.top
-        , UP.map PlaygroundRoute (UP.s "playground" </> UP.string)
-        , UP.map NewAwardRoute (UP.s "new-award" </> UP.string)
-        , UP.map AwardsRoute (UP.s "award")
-        , UP.map AdminRoute (UP.s "admin")
-        , UP.map MyUserRoute (UP.s "my-user")
-        , UP.map LoginRoute (UP.s "login" </> UP.string)
-        , UP.map PlaygroundAdminRoute (UP.s "admin" </> UP.s "playground" </> UP.string)
-        ]
 
 
 
@@ -121,25 +104,18 @@ update msg model =
                         route =
                             parseUrl url
                     in
-                    case model.user of
-                        Just { id } ->
-                            let
-                                collectCmd =
-                                    case route of
-                                        NewAwardRoute guid ->
-                                            Lamdera.sendToBackend <| Collect guid id
+                    let
+                        collectCmd =
+                            case route of
+                                NewAwardRoute guid ->
+                                    Lamdera.sendToBackend <| Collect guid
 
-                                        _ ->
-                                            Cmd.none
-                            in
-                            ( { model | route = route }
-                            , collectCmd
-                            )
-
-                        Nothing ->
-                            ( { model | route = route }
-                            , Cmd.none
-                            )
+                                _ ->
+                                    Cmd.none
+                    in
+                    ( { model | route = route }
+                    , collectCmd
+                    )
 
                 Just _ ->
                     -- any url change just closes the modal, the forward cancels out the back navigation
@@ -172,7 +148,7 @@ update msg model =
             )
 
         RemovePlaygroundLocal playground ->
-            ( { model | playgrounds = IdSet.remove playground model.playgrounds }, Cmd.batch [ Nav.back model.key 1, Lamdera.sendToBackend <| RemovePlayground playground ] )
+            ( { model | playgrounds = IdSet.remove playground.id model.playgrounds }, Cmd.batch [ Nav.back model.key 1, Lamdera.sendToBackend <| RemovePlayground playground ] )
 
         AddAward playground ->
             let
@@ -214,10 +190,18 @@ update msg model =
                         Nothing ->
                             IdSet.generateId model.seeds
             in
-            ( { model | user = Just { id = userId, awards = IdSet.empty }, seeds = seeds }, saveStorage userId )
+            ( { model | user = Just { id = userId, awards = IdSet.empty }, seeds = seeds }, Cmd.batch [ saveStorage userId, Lamdera.sendToBackend <| SetConnectedUser userId ] )
 
-        LoginWithId guid ->
-            ( { model | user = Just { id = guid, awards = IdSet.empty } }, Nav.replaceUrl model.key "/" )
+        LoginWithId userId ->
+            ( { model | user = Just { id = userId, awards = IdSet.empty } }
+            , Cmd.batch [ Nav.replaceUrl model.key "/", Lamdera.sendToBackend <| SetConnectedUser userId, saveStorage userId ]
+            )
+
+        SetSeed seeds ->
+            ( { model | seeds = seeds }, Cmd.none )
+
+        Share data ->
+            ( model, share data )
 
 
 initPlayground : Seeds -> ( Playground, Seeds )
@@ -245,7 +229,7 @@ updateFromBackend msg model =
             ( { model | playgrounds = model.playgrounds |> IdSet.insert playground }, Cmd.none )
 
         PlaygroundRemoved playground ->
-            ( { model | playgrounds = model.playgrounds |> IdSet.remove playground }, Cmd.none )
+            ( { model | playgrounds = model.playgrounds |> IdSet.remove playground.id }, Cmd.none )
 
         PlaygroundsFetched playgrounds ->
             ( { model | playgrounds = model.playgrounds |> IdSet.union (IdSet.fromList playgrounds) }, Cmd.none )
@@ -351,25 +335,41 @@ viewLogin maybeUser userId =
 
 
 viewMyUser maybeUser =
-    let
-        userQRCode user =
-            el [ width fill, height fill ] <|
-                qrCodeView ("https://magdeburger-spielplatznadel-develop.lamdera.app/login/" ++ user.id)
-    in
     layout [ width fill, height fill ] <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 24, width fill ]
                 [ viewTitle "Dein Account"
-                , viewParapraph "Hier findest du alles wichtige über deinen Account. Du kannst dich über den QR-Code auch wo anders anmelden."
+                , viewParapraph "Hier findest du alles wichtige über deinen Account. Über den QR-Code kannst du deinen Account mit einem weiteren Gerät teilen."
                 ]
             , case maybeUser of
                 Nothing ->
                     text "Du hast keinen Benutzer"
 
                 Just user ->
+                    let
+                        url =
+                            "https://magdeburger-spielplatznadel-develop.lamdera.app/login/" ++ user.id
+
+                        userQRCode =
+                            el [ width fill, height fill ] <|
+                                qrCodeView <|
+                                    url
+
+                        qrBase64Png =
+                            QRCode.fromString url
+                                |> Result.map
+                                    (QRCode.toImage >> Image.toPngUrl)
+                                |> Result.withDefault ""
+                    in
                     column [ width fill ]
-                        [ userQRCode user
+                        [ userQRCode
                         , el [ Background.color secondaryDark, padding 8, Border.rounded 16, Font.color white, Font.size 14, centerX ] <| text user.id
+                        , shareButton
+                            { files = [ qrBase64Png ]
+                            , text = "Du kannst diesen Link nutzen um dich bei der Magdeburger Spielplatznadel an zu melden."
+                            , title = "Anmeldung"
+                            , url = url
+                            }
                         ]
             ]
 
@@ -687,7 +687,7 @@ viewPlaygroundAdminRoute model playground =
                 , cuteInputMultiline "Beschreibung des Spielpatzes" playground.description <| \v -> UpdatePlayground { playground | description = v }
                 ]
 
-        viewImagesAdmin : List Image -> Element FrontendMsg
+        viewImagesAdmin : List Img -> Element FrontendMsg
         viewImagesAdmin images =
             column [ width fill, spacing 16 ]
                 [ column [ width fill, spacing 16 ]
@@ -880,6 +880,10 @@ viewImageStrip images =
                 List.map imagePreview images
 
 
+shareButton shareData =
+    cuteButton (Share shareData) <| text "share"
+
+
 
 -- Ports
 
@@ -894,6 +898,9 @@ port storageLoaded : (Maybe String -> msg) -> Sub msg
 
 
 port saveStorage : String -> Cmd msg
+
+
+port share : ShareData -> Cmd msg
 
 
 
@@ -1335,6 +1342,28 @@ displayIf boolean element =
 
 
 -- Utility
+
+
+magdeburg =
+    { lat = 52.131667, lng = 11.639167 }
+
+
+parseUrl url =
+    UP.parse routeParser url |> Maybe.withDefault MainRoute
+
+
+routeParser : Parser (Route -> a) a
+routeParser =
+    oneOf
+        [ UP.map MainRoute UP.top
+        , UP.map PlaygroundRoute (UP.s "playground" </> UP.string)
+        , UP.map NewAwardRoute (UP.s "new-award" </> UP.string)
+        , UP.map AwardsRoute (UP.s "award")
+        , UP.map AdminRoute (UP.s "admin")
+        , UP.map MyUserRoute (UP.s "my-user")
+        , UP.map LoginRoute (UP.s "login" </> UP.string)
+        , UP.map PlaygroundAdminRoute (UP.s "admin" </> UP.s "playground" </> UP.string)
+        ]
 
 
 wrapInAreYouSure label msg =

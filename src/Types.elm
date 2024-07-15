@@ -2,8 +2,10 @@ module Types exposing (..)
 
 import Browser exposing (UrlRequest)
 import Browser.Navigation as Nav
+import Dict exposing (Dict)
 import IdSet exposing (..)
 import Lamdera exposing (ClientId, SessionId)
+import Random
 import Set exposing (Set)
 import UUID
 import Url exposing (Url)
@@ -26,7 +28,7 @@ type alias FrontendModel =
 
 
 type Modal
-    = ImageModal Image
+    = ImageModal Img
     | AreYouSureModal String FrontendMsg
 
 
@@ -46,7 +48,7 @@ type alias Playground =
     , title : String
     , description : String
     , location : Location
-    , images : List Image
+    , images : List Img
     , awards : List Award
     , markerIcon : MarkerIcon
     }
@@ -55,11 +57,11 @@ type alias Playground =
 type alias Award =
     { id : Guid
     , title : String
-    , image : Image
+    , image : Img
     }
 
 
-type alias Image =
+type alias Img =
     { url : String
     , description : String
 
@@ -114,16 +116,24 @@ type alias Guid =
 
 type alias BackendModel =
     { playgrounds : IdSet Playground
-    , connected : Set ClientId
+    , connections : IdSet Connection
     , users : IdSet User
     }
 
 
-type alias User =
-    { id : Guid
-    , awards : IdSet Award
+type alias Connection =
+    { id : ClientId
+    , userId : Maybe Guid
+    }
 
-    -- , sessions : Set SessionId
+
+type alias UserId =
+    Guid
+
+
+type alias User =
+    { id : UserId
+    , awards : IdSet Award
     }
 
 
@@ -146,7 +156,18 @@ type FrontendMsg
     | RemovePlaygroundLocal Playground
     | GeoLocationUpdated (Maybe GeoLocation)
     | StorageLoaded (Maybe String)
-    | LoginWithId Guid
+    | LoginWithId UserId
+    | SetSeed UUID.Seeds
+    | Share ShareData
+
+
+type alias ShareData =
+    { -- base64 encoded blobs
+      files : List String
+    , text : String
+    , title : String
+    , url : String
+    }
 
 
 
@@ -172,7 +193,8 @@ type ToBackend
     = NoOpToBackend
     | UploadPlayground Playground
     | RemovePlayground Playground
-    | Collect Guid Guid
+    | Collect Guid
+    | SetConnectedUser UserId
 
 
 type BackendMsg

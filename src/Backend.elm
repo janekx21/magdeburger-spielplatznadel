@@ -3,7 +3,6 @@ module Backend exposing (..)
 import Common exposing (..)
 import IdSet
 import Lamdera exposing (ClientId, SessionId)
-import Set
 import Types exposing (..)
 
 
@@ -31,7 +30,7 @@ app =
 
 init : ( Model, Cmd BackendMsg )
 init =
-    ( { playgrounds = IdSet.fromList seedsPlaygrounds, connected = Set.empty, users = IdSet.empty }
+    ( { playgrounds = IdSet.fromList seedsPlaygrounds, connections = IdSet.empty, users = IdSet.empty }
     , Cmd.none
     )
 
@@ -129,7 +128,7 @@ update msg model =
             --             {
             --             }
             -- in
-            ( { model | connected = model.connected |> Set.insert clientId }
+            ( { model | connections = model.connections |> IdSet.insert (initConnection clientId) }
             , Lamdera.sendToFrontend clientId <|
                 PlaygroundsFetched <|
                     IdSet.toList <|
@@ -137,14 +136,19 @@ update msg model =
             )
 
         ClientDisconnected clientId ->
-            ( { model | connected = model.connected |> Set.remove clientId }, Cmd.none )
+            ( { model | connections = model.connections |> IdSet.remove clientId }, Cmd.none )
+
+
+initConnection : ClientId -> Connection
+initConnection clientId =
+    { id = clientId, userId = Nothing }
 
 
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> Model -> ( Model, Cmd BackendMsg )
-updateFromFrontend _ clientId msg model =
+updateFromFrontend sessionId clientId msg model =
     let
         others =
-            model.connected |> Set.remove clientId |> Set.toList
+            model.connections |> IdSet.remove clientId |> IdSet.toList |> List.map .id
     in
     case msg of
         NoOpToBackend ->
@@ -154,32 +158,49 @@ updateFromFrontend _ clientId msg model =
             ( { model | playgrounds = model.playgrounds |> IdSet.insert playground }, broadcastTo others <| PlaygroundUploaded playground )
 
         RemovePlayground playground ->
-            ( { model | playgrounds = model.playgrounds |> IdSet.remove playground }, broadcastTo others <| PlaygroundRemoved playground )
+            ( { model | playgrounds = model.playgrounds |> IdSet.remove playground.id }, broadcastTo others <| PlaygroundRemoved playground )
 
-        Collect itemId userId ->
+        Collect itemId ->
             let
                 maybeAward =
                     allAwards model.playgrounds
                         |> List.filter (\a -> a.id == itemId)
                         |> List.head
 
-                ( users, user ) =
-                    model.users |> IdSet.getOrInsert userId (initUser userId)
+                maybeUser =
+                    model.connections
+                        |> IdSet.get clientId
+                        |> Maybe.andThen .userId
+                        |> Maybe.andThen (\userId -> model.users |> IdSet.get userId)
             in
-            case maybeAward of
-                Just award ->
+            case ( maybeAward, maybeUser ) of
+                ( Just award, Just user ) ->
                     let
                         newUser =
                             { user | awards = user.awards |> IdSet.insert award }
+
+                        userConnections =
+                            model.connections
+                                |> IdSet.toList
+                                |> List.filter (\{ userId } -> userId == Just newUser.id)
+                                |> List.map .id
                     in
-                    ( { model
-                        | users = users |> IdSet.insert newUser
-                      }
-                    , Lamdera.sendToFrontend clientId <| UserUpdated newUser
+                    ( { model | users = model.users |> IdSet.insert newUser }
+                    , broadcastTo userConnections <| UserUpdated newUser
                     )
 
                 _ ->
                     ( model, Cmd.none )
+
+        SetConnectedUser guid ->
+            let
+                ( users, user ) =
+                    model.users |> IdSet.getOrInsert guid (initUser guid)
+
+                connected =
+                    model.connections |> IdSet.insert { id = clientId, userId = Just user.id }
+            in
+            ( { model | users = users, connections = connected }, Lamdera.sendToFrontend clientId <| UserUpdated user )
 
 
 initUser : Guid -> User
