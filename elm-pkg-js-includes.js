@@ -4,6 +4,7 @@
 
 const geo_location = require("./elm-pkg-js/geo-location");
 const storage = require("./elm-pkg-js/storage");
+const share = require("./elm-pkg-js/share");
 
 exports.init = async function init(app) {
   // @WARNING: this only runs for Lamdera production deploys!
@@ -11,4 +12,5 @@ exports.init = async function init(app) {
   // automatically generated in Local Development for every file in elm-pkg-js/
   geo_location.init(app);
   storage.init(app);
+  share.init(app);
 };
