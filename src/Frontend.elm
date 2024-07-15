@@ -364,6 +364,7 @@ viewMyUser maybeUser =
                     column [ width fill ]
                         [ userQRCode
                         , el [ Background.color secondaryDark, padding 8, Border.rounded 16, Font.color white, Font.size 14, centerX ] <| text user.id
+                        , image [] { src = qrBase64Png, description = "" }
                         , shareButton
                             { files = [ qrBase64Png ]
                             , text = "Du kannst diesen Link nutzen um dich bei der Magdeburger Spielplatznadel an zu melden."

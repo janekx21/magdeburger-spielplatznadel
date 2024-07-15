@@ -18,6 +18,8 @@ exports.init = async function (app) {
 // @param {string} dataUrl
 async function dataUrlToFile(dataUrl) {
   const response = await fetch(dataUrl);
+  console.log(response);
   const blob = response.blob();
-  return new File([blob], "shared.png", { type: blob.type });
+  console.log(blob.type);
+  return new File([blob], "shared.png", { type: "image/png" });
 }
