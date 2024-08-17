@@ -2,11 +2,12 @@ module Types exposing (..)
 
 import Browser exposing (UrlRequest)
 import Browser.Navigation as Nav
-import Dict exposing (Dict)
+import Bytes exposing (Bytes)
+import File exposing (File)
+import Http
 import IdSet exposing (..)
+import Json.Decode as D
 import Lamdera exposing (ClientId, SessionId)
-import Random
-import Set exposing (Set)
 import UUID
 import Url exposing (Url)
 
@@ -159,6 +160,10 @@ type FrontendMsg
     | LoginWithId UserId
     | SetSeed UUID.Seeds
     | Share ShareData
+    | ImageRequested ImageTarget
+    | ImageSelected ImageTarget File
+    | ImageLoaded ImageTarget String
+    | ImageUploaded (Result Http.Error String)
 
 
 type alias ShareData =
@@ -168,6 +173,10 @@ type alias ShareData =
     , title : String
     , url : String
     }
+
+
+type ImageTarget
+    = PlaygroundImageTarget Playground
 
 
 
@@ -195,12 +204,17 @@ type ToBackend
     | RemovePlayground Playground
     | Collect Guid
     | SetConnectedUser UserId
+    | UploadImage Bytes
 
 
 type BackendMsg
     = NoOpBackendMsg
     | ClientConnected SessionId ClientId
     | ClientDisconnected ClientId
+
+
+
+-- | ImageUploaded (Result Http.Error String)
 
 
 type ToFrontend

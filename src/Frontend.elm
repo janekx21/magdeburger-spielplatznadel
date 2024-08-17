@@ -9,9 +9,12 @@ import Element.Border as Border
 import Element.Events
 import Element.Font as Font
 import Element.Input as Input
+import File
+import File.Select as Select
 import Html
 import Html.Attributes
 import Html.Events
+import Http
 import IdSet
 import Image
 import Json.Decode as D
@@ -21,6 +24,7 @@ import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
 import QRCode
 import Random
+import Task
 import Types exposing (..)
 import UUID exposing (Seeds)
 import Url
@@ -203,6 +207,54 @@ update msg model =
         Share data ->
             ( model, share data )
 
+        ImageRequested target ->
+            ( model, Select.file [ "image/*" ] (ImageSelected target) )
+
+        ImageSelected target file ->
+            -- ( model, Lamdera.sendToBackend <| UploadImage file )
+            ( model
+            , File.toUrl file
+                |> Task.perform (ImageLoaded target)
+            )
+
+        ImageLoaded target dataUrl ->
+            -- ( model, Lamdera.sendToBackend <| UploadImage bytes )
+            ( model, imageUploadCmd dataUrl )
+
+        ImageUploaded result ->
+            let
+                _ =
+                    Debug.log "image upload result" result
+            in
+            ( model, Cmd.none )
+
+
+imageUploadCmd dataUrl =
+    Http.post
+        { url = "https://api.imgur.com/3/image"
+        , expect = Http.expectJson ImageUploaded (D.value |> D.map Debug.toString)
+        , body =
+            Http.jsonBody <|
+                E.object
+                    [ ( "image", E.string dataUrl )
+                    ]
+
+        -- Http.multipartBody
+        --     [ Http.stringPart "type" "base64"
+        --     , Http.stringPart "title" "some title"
+        --     , Http.stringPart "description" "some description"
+        --     , Http.stringPart "image" dataUrl
+        --     ]
+        }
+
+
+
+-- case target of
+--     PlaygroundImageTarget playground ->
+--         update
+--             (UpdatePlayground { playground | images = playground.images ++ [ { url = dataUrl, description = "" } ] })
+--             model
+
 
 initPlayground : Seeds -> ( Playground, Seeds )
 initPlayground s1 =
@@ -309,11 +361,17 @@ view model =
                 Just (AreYouSureModal label msg) ->
                     viewAreYouSureModal label msg
     in
-    { title = "", body = [ body ] }
+    { title = ""
+    , body =
+        -- The flex box will enlarge from the flex-basis. This needs to be disabled on scolling content
+        [ Html.node "style" [] [ Html.text ".s.sby {flex-basis: 0 !important;}" ]
+        , body
+        ]
+    }
 
 
 viewLogin maybeUser userId =
-    layout [ width fill, height fill ] <|
+    defaultLayout <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 24, width fill, centerY ] <|
                 case maybeUser of
@@ -335,7 +393,7 @@ viewLogin maybeUser userId =
 
 
 viewMyUser maybeUser =
-    layout [ width fill, height fill ] <|
+    defaultLayout <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 24, width fill ]
                 [ viewTitle "Dein Account"
@@ -361,13 +419,22 @@ viewMyUser maybeUser =
                                     (QRCode.toImage >> Image.toPngUrl)
                                 |> Result.withDefault ""
                     in
-                    column [ width fill ]
+                    column [ width fill, height fill, spacing 16 ]
                         [ userQRCode
-                        , el [ Background.color secondaryDark, padding 8, Border.rounded 16, Font.color white, Font.size 14, centerX ] <| text user.id
-                        , image [] { src = qrBase64Png, description = "" }
+                        , el
+                            [ Background.color secondaryDark
+                            , padding 8
+                            , Border.rounded 16
+                            , Font.color white
+                            , Font.size 14
+                            , centerX
+                            ]
+                          <|
+                            text user.id
+                        , el [ height fill ] <| none
                         , shareButton
                             { files = [ qrBase64Png ]
-                            , text = "Du kannst diesen Link nutzen um dich bei der Magdeburger Spielplatznadel an zu melden."
+                            , text = "Du kannst diesen Link nutzen um dich bei der Magdeburger Spielplatznadel anzumelden."
                             , title = "Anmeldung"
                             , url = url
                             }
@@ -411,29 +478,30 @@ viewImageModal i =
             <|
                 none
     in
-    layout
-        [ width fill
-        , height fill
-        , inFront <|
-            el [ alignBottom, alignRight, padding 32 ] <|
-                lifted <|
-                    row [ spacing 8 ]
-                        [ imageLink, close ]
-        , Background.image "/assets/images/map_background.jpg"
-        ]
-    <|
-        column [ height fill, width fill, padding 8 ]
-            [ closingTrigger
-            , image
-                [ width fill
-                , centerY
-                , Border.rounded 16
-                , style "overflow" "hidden"
-                , Element.Events.onClick <| NoOpFrontendMsg
-                ]
-                { src = i.url, description = i.description }
-            , closingTrigger
+    defaultLayout <|
+        el
+            [ width fill
+            , height fill
+            , inFront <|
+                el [ alignBottom, alignRight, padding 32 ] <|
+                    lifted <|
+                        row [ spacing 8 ]
+                            [ imageLink, close ]
+            , Background.image "/assets/images/map_background.jpg"
             ]
+        <|
+            column [ height fill, width fill, padding 8 ]
+                [ closingTrigger
+                , image
+                    [ width fill
+                    , centerY
+                    , Border.rounded 16
+                    , style "overflow" "hidden"
+                    , Element.Events.onClick <| NoOpFrontendMsg
+                    ]
+                    { src = i.url, description = i.description }
+                , closingTrigger
+                ]
 
 
 viewAreYouSureModal label msg =
@@ -441,22 +509,23 @@ viewAreYouSureModal label msg =
         button attr msg_ label_ =
             Input.button ([ Font.color black, padding 8, Border.rounded 8, width fill ] ++ attr) { onPress = Just msg_, label = el [ centerX ] <| text label_ }
     in
-    layout
-        [ width fill
-        , height fill
-        , Font.color white
-        , Background.color black
-        , Font.size 32
-        , padding 32
-        ]
-    <|
-        column [ centerX, centerY, spacing 16, width fill ]
-            [ paragraph [ width fill ] [ text label ]
-            , row [ width fill, spacing 8 ]
-                [ button [ Background.color accent ] (CloseModalAnd msg) "Ja"
-                , button [ Background.color primary ] CloseModal "Nein"
-                ]
+    defaultLayout <|
+        el
+            [ width fill
+            , height fill
+            , Font.color white
+            , Background.color black
+            , Font.size 32
+            , padding 32
             ]
+        <|
+            column [ centerX, centerY, spacing 16, width fill ]
+                [ paragraph [ width fill ] [ text label ]
+                , row [ width fill, spacing 8 ]
+                    [ button [ Background.color accent ] (CloseModalAnd msg) "Ja"
+                    , button [ Background.color primary ] CloseModal "Nein"
+                    ]
+                ]
 
 
 viewMainRoute : Model -> Html.Html FrontendMsg
@@ -470,77 +539,78 @@ viewMainRoute model =
                 Nothing ->
                     model.playgrounds |> IdSet.toList
     in
-    layout
-        [ width fill
-        , height fill
-        , inFront <|
-            el [ alignBottom, alignRight, padding 32 ] <|
-                buttonAwards
-        ]
-    <|
-        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
-            [ column [ spacing 24, width fill ]
-                [ viewTitle "Magdeburger Spielplatznadel"
-                , viewParapraph "Fangt jetzt an Stempel zu sammeln und schaut wie viel ihr bekommen könnt."
-                ]
-            , map (Maybe.map .location model.currentGeoLocation) (List.map playgroundMarker playgrounds)
-            , column
-                [ spacing 16, width fill ]
-                (playgrounds |> List.map (playgroundItem (Maybe.map .location model.currentGeoLocation)))
-            , column
-                [ spacing 16, width fill ]
-                [ link
-                    [ padding 16
-                    , Background.color secondaryDark
-                    , Border.rounded 16
-                    , Font.color white
-                    , width fill
-                    , Font.center
-                    ]
-                    { url = "/my-user"
-                    , label =
-                        text "Dein Account"
-                    }
-                , link
-                    [ padding 16
-                    , Background.color secondaryDark
-                    , Border.rounded 16
-                    , Font.color white
-                    , width fill
-                    , Font.center
-                    ]
-                    { url = "/admin"
-                    , label =
-                        text "Admin Seite"
-                    }
-                ]
-            , column
-                [ spacing 16, width fill ]
-                [ el [ Font.bold ] <| text "debuggin menu"
-                , column [ spacing 8, width fill ]
-                    (allAwards model.playgrounds
-                        |> List.map
-                            (\{ id, title } ->
-                                link [ width fill ]
-                                    { url = "/new-award/" ++ id
-                                    , label =
-                                        el
-                                            [ padding 16
-                                            , Background.color secondaryDark
-                                            , Border.rounded 16
-                                            , Font.color white
-                                            , width fill
-                                            ]
-                                        <|
-                                            text <|
-                                                "Stempel "
-                                                    ++ title
-                                                    ++ " eintragen"
-                                    }
-                            )
-                    )
-                ]
+    defaultLayout <|
+        el
+            [ width fill
+            , height fill
+            , inFront <|
+                el [ alignBottom, alignRight, padding 32 ] <|
+                    buttonAwards
             ]
+        <|
+            column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+                [ column [ spacing 24, width fill ]
+                    [ viewTitle "Magdeburger Spielplatznadel"
+                    , viewParapraph "Fangt jetzt an Stempel zu sammeln und schaut wie viel ihr bekommen könnt."
+                    ]
+                , map (Maybe.map .location model.currentGeoLocation) (List.map playgroundMarker playgrounds)
+                , column
+                    [ spacing 16, width fill ]
+                    (playgrounds |> List.map (playgroundItem (Maybe.map .location model.currentGeoLocation)))
+                , column
+                    [ spacing 16, width fill ]
+                    [ link
+                        [ padding 16
+                        , Background.color secondaryDark
+                        , Border.rounded 16
+                        , Font.color white
+                        , width fill
+                        , Font.center
+                        ]
+                        { url = "/my-user"
+                        , label =
+                            text "Dein Account"
+                        }
+                    , link
+                        [ padding 16
+                        , Background.color secondaryDark
+                        , Border.rounded 16
+                        , Font.color white
+                        , width fill
+                        , Font.center
+                        ]
+                        { url = "/admin"
+                        , label =
+                            text "Admin Seite"
+                        }
+                    ]
+                , column
+                    [ spacing 16, width fill ]
+                    [ el [ Font.bold ] <| text "debuggin menu"
+                    , column [ spacing 8, width fill ]
+                        (allAwards model.playgrounds
+                            |> List.map
+                                (\{ id, title } ->
+                                    link [ width fill ]
+                                        { url = "/new-award/" ++ id
+                                        , label =
+                                            el
+                                                [ padding 16
+                                                , Background.color secondaryDark
+                                                , Border.rounded 16
+                                                , Font.color white
+                                                , width fill
+                                                ]
+                                            <|
+                                                text <|
+                                                    "Stempel "
+                                                        ++ title
+                                                        ++ " eintragen"
+                                        }
+                                )
+                        )
+                    ]
+                ]
 
 
 viewAwardsRoute : Model -> Html.Html msg
@@ -554,14 +624,15 @@ viewAwardsRoute model =
         dot =
             el [ width (px 12), height (px 12), Background.color secondaryDark, Border.rounded 999 ] <| none
     in
-    layout [ width fill, height fill, behindContent <| el [ height fill, width (px 24), padding 8 ] <| column [ centerX, height fill ] <| (List.repeat 12 dot |> List.intersperse bound) ] <|
-        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
-            [ column [ spacing 24, width fill ]
-                [ viewTitle "Stempelbuch"
-                , viewParapraph "Hier findest du alle eingetragenen und austehenden Stempel."
+    defaultLayout <|
+        el [ width fill, height fill, behindContent <| el [ height fill, width (px 24), padding 8 ] <| column [ centerX, height fill ] <| (List.repeat 12 dot |> List.intersperse bound) ] <|
+            column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+                [ column [ spacing 24, width fill ]
+                    [ viewTitle "Stempelbuch"
+                    , viewParapraph "Hier findest du alle eingetragenen und austehenden Stempel."
+                    ]
+                , viewAwardList (model.user |> Maybe.map .awards |> Maybe.withDefault IdSet.empty) <| allAwards model.playgrounds
                 ]
-            , viewAwardList (model.user |> Maybe.map .awards |> Maybe.withDefault IdSet.empty) <| allAwards model.playgrounds
-            ]
 
 
 viewAwardList : IdSet.IdSet Award -> List Award -> Element msg
@@ -585,7 +656,7 @@ viewAwardList found awards =
 
 
 viewNewAwardRoute model award =
-    layout [ width fill, height fill ] <|
+    defaultLayout <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column
                 [ spacing 16
@@ -629,7 +700,7 @@ viewNewAwardRoute model award =
 
 viewPlaygroundRoute : Model -> Playground -> Html.Html FrontendMsg
 viewPlaygroundRoute model playground =
-    layout [ width fill, height fill ] <|
+    defaultLayout <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
             , column [ spacing 32, width fill ]
@@ -663,11 +734,7 @@ viewAdminRoute model =
                 , label = el [ centerX, centerY ] <| icon Icons.add
                 }
     in
-    layout
-        [ width fill
-        , height fill
-        ]
-    <|
+    defaultLayout <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 24, width fill ]
                 [ viewTitle "Admin Seite"
@@ -687,6 +754,9 @@ viewPlaygroundAdminRoute model playground =
                 [ cuteInput "Titel des Spielplatzes" playground.title <| \v -> UpdatePlayground { playground | title = v }
                 , cuteInputMultiline "Beschreibung des Spielpatzes" playground.description <| \v -> UpdatePlayground { playground | description = v }
                 ]
+
+        imageUpload =
+            cuteButton (ImageRequested <| PlaygroundImageTarget playground) <| text "Bild hochladen"
 
         viewImagesAdmin : List Img -> Element FrontendMsg
         viewImagesAdmin images =
@@ -714,19 +784,20 @@ viewPlaygroundAdminRoute model playground =
                 ]
 
         addImageButton =
-            Input.button
-                [ width fill
-                , Border.rounded 16
-                , Background.color secondary
-                , width fill
-                , height (px 64)
-                , paddingXY 24 0
-                , Font.color secondaryDark
-                ]
-                { onPress = Just <| UpdatePlayground { playground | images = playground.images ++ [ { url = "", description = "" } ] }
-                , label = row [ centerX, centerY, spacing 8 ] [ icon Icons.add, icon Icons.image ]
-                }
+            imageUpload
 
+        -- Input.button
+        --     [ width fill
+        --     , Border.rounded 16
+        --     , Background.color secondary
+        --     , width fill
+        --     , height (px 64)
+        --     , paddingXY 24 0
+        --     , Font.color secondaryDark
+        --     ]
+        --     { onPress = Just <| UpdatePlayground { playground | images = playground.images ++ [ { url = "", description = "" } ] }
+        --     , label = row [ centerX, centerY, spacing 8 ] [ icon Icons.add, icon Icons.image ]
+        --     }
         viewAwardItemAdmin : Award -> Element FrontendMsg
         viewAwardItemAdmin award =
             column
@@ -810,8 +881,9 @@ viewPlaygroundAdminRoute model playground =
         viewDeleteButton =
             cuteButton (RemovePlaygroundLocal playground) <| row [] [ icon Icons.delete, text "Speilplatz löschen" ]
     in
-    layout [ width fill, height fill ] <|
-        column [ width fill, height fill, spacing 64, padding 22, scrollbarY ]
+    defaultLayout <|
+        column
+            [ width fill, height fill, spacing 128, padding 22, scrollbarY ]
             ([ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
              , adminGeneral
              , viewMarkerAdmin playground.markerIcon
@@ -821,8 +893,18 @@ viewPlaygroundAdminRoute model playground =
              , adminMapWithLocation
              , viewDeleteButton
              ]
-                |> List.intersperse (el [ width fill, height (px 2), Background.color secondary ] <| none)
+             -- |> List.intersperse (el [ width fill, height (px 32), Background.color secondary, alpha 0.1 ] <| none)
             )
+
+
+defaultLayout =
+    layout [ width fill, height fill ]
+        << el
+            [ width <| maximum 480 <| fill
+            , height fill
+            , centerX
+            , Border.shadow { offset = ( 0, 0 ), size = 0, blur = 64, color = rgba 0 0 0 0.2 }
+            ]
 
 
 removeButton msg =
@@ -882,7 +964,7 @@ viewImageStrip images =
 
 
 shareButton shareData =
-    cuteButton (Share shareData) <| text "share"
+    cuteButton (Share shareData) <| row [ spacing 8 ] [ icon Icons.share, text "Teilen" ]
 
 
 

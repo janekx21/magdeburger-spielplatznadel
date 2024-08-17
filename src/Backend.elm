@@ -1,7 +1,9 @@
 module Backend exposing (..)
 
 import Common exposing (..)
+import Http
 import IdSet
+import Json.Decode as D
 import Lamdera exposing (ClientId, SessionId)
 import Types exposing (..)
 
@@ -139,6 +141,15 @@ update msg model =
             ( { model | connections = model.connections |> IdSet.remove clientId }, Cmd.none )
 
 
+
+-- ImageUploaded result ->
+--     let
+--         _ =
+--             Debug.log "image upload result" result
+--     in
+--     ( model, Cmd.none )
+
+
 initConnection : ClientId -> Connection
 initConnection clientId =
     { id = clientId, userId = Nothing }
@@ -202,6 +213,13 @@ updateFromFrontend sessionId clientId msg model =
             in
             ( { model | users = users, connections = connected }, Lamdera.sendToFrontend clientId <| UserUpdated user )
 
+        UploadImage file ->
+            ( model, Cmd.none )
+
+
+
+-- imageUploadCmd file
+
 
 initUser : Guid -> User
 initUser id =
@@ -210,3 +228,18 @@ initUser id =
 
 broadcastTo clientIds msg =
     clientIds |> List.map (\id -> Lamdera.sendToFrontend id msg) |> Cmd.batch
+
+
+
+-- imageUploadCmd file =
+--     Http.post
+--         { url = "https://api.imgur.com/3/image"
+--         , expect = Http.expectJson ImageUploaded (D.value |> D.map Debug.toString)
+--         , body =
+--             Http.multipartBody
+--                 [ Http.stringPart "type" "image"
+--                 , Http.stringPart "title" "some title"
+--                 , Http.stringPart "description" "some description"
+--                 , Http.bytesPart "image" "image/png" file
+--                 ]
+--         }
