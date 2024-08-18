@@ -229,10 +229,10 @@ update msg model =
             ( model, imageUploadCmd dataUrl )
 
         ImageUploaded result ->
-            let
-                _ =
-                    Debug.log "image upload result" result
-            in
+            -- let
+            --     _ =
+            --         Debug.log "image upload result" result
+            -- in
             ( model, Cmd.none )
 
         Tick newTime ->
@@ -251,7 +251,7 @@ newRoute url model =
 imageUploadCmd dataUrl =
     Http.post
         { url = "https://api.imgur.com/3/image"
-        , expect = Http.expectJson ImageUploaded (D.value |> D.map Debug.toString)
+        , expect = Http.expectString ImageUploaded
         , body =
             Http.jsonBody <|
                 E.object
