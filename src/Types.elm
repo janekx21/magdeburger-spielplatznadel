@@ -1,5 +1,6 @@
 module Types exposing (..)
 
+import Animator
 import Browser exposing (UrlRequest)
 import Browser.Navigation as Nav
 import Bytes exposing (Bytes)
@@ -8,6 +9,7 @@ import Http
 import IdSet exposing (..)
 import Json.Decode as D
 import Lamdera exposing (ClientId, SessionId)
+import Time
 import UUID
 import Url exposing (Url)
 
@@ -18,7 +20,7 @@ import Url exposing (Url)
 
 type alias FrontendModel =
     { key : Nav.Key
-    , route : Route
+    , route : Animator.Timeline Route
     , online : Bool
     , playgrounds : IdSet Playground
     , currentGeoLocation : Maybe GeoLocation -- TODO dont use this as the maps view location. this could snap back at any time
@@ -164,6 +166,7 @@ type FrontendMsg
     | ImageSelected ImageTarget File
     | ImageLoaded ImageTarget String
     | ImageUploaded (Result Http.Error String)
+    | Tick Time.Posix
 
 
 type alias ShareData =

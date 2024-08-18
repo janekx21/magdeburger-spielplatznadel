@@ -1,5 +1,7 @@
 port module Frontend exposing (app)
 
+import Animator
+import Animator.Css
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Common exposing (..)
@@ -29,6 +31,10 @@ import Types exposing (..)
 import UUID exposing (Seeds)
 import Url
 import Url.Parser as UP exposing ((</>), Parser, oneOf)
+
+
+
+-- TODO Url.Builder
 
 
 type alias Model =
@@ -65,7 +71,7 @@ init url key =
             Random.independentSeed
     in
     ( { key = key
-      , route = route
+      , route = Animator.init route
       , online = True
       , currentGeoLocation = Nothing
       , modal = Nothing
@@ -92,7 +98,8 @@ update msg model =
         UrlClicked urlRequest ->
             case urlRequest of
                 Internal url ->
-                    ( model
+                    ( newRoute url model
+                      -- ( model
                     , Nav.pushUrl model.key (Url.toString url)
                     )
 
@@ -117,7 +124,7 @@ update msg model =
                                 _ ->
                                     Cmd.none
                     in
-                    ( { model | route = route }
+                    ( newRoute url model
                     , collectCmd
                     )
 
@@ -228,6 +235,18 @@ update msg model =
             in
             ( model, Cmd.none )
 
+        Tick newTime ->
+            ( Animator.update newTime animator model, Cmd.none )
+
+
+newRoute : Url.Url -> Model -> Model
+newRoute url model =
+    { model
+        | route =
+            model.route
+                |> Animator.go (Animator.millis 500) (parseUrl url)
+    }
+
 
 imageUploadCmd dataUrl =
     Http.post
@@ -296,8 +315,79 @@ updateFromBackend msg model =
 
 view : Model -> Browser.Document FrontendMsg
 view model =
-    let
-        viewRoute route =
+    { title = ""
+    , body =
+        -- The flex box will enlarge from the flex-basis. This needs to be disabled on scolling content
+        [ Html.node "style" [] [ Html.text ".s.sby {flex-basis: 0 !important;}" ]
+        , Html.div
+            [ Html.Attributes.style "height" "100%"
+            , Html.Attributes.style "width" "100%"
+            , Html.Attributes.style "position" "relative"
+            ]
+            [ layout [] <| none
+            , Animator.Css.div model.route
+                [ Animator.Css.transform <|
+                    \state ->
+                        if Animator.upcoming state model.route then
+                            Animator.Css.xy { x = 0, y = 0 }
+
+                        else
+                            Animator.Css.xy { x = 460 * 2, y = 0 }
+                , Animator.Css.opacity <|
+                    \state ->
+                        (if Animator.upcoming state model.route then
+                            Animator.at 1
+
+                         else
+                            Animator.at 0
+                        )
+                            |> Animator.leaveSmoothly 0
+                            |> Animator.arriveSmoothly 1
+                ]
+                [ Html.Attributes.style "inset" "0"
+                , Html.Attributes.style "position" "absolute"
+                ]
+                [ viewRoute (Animator.current model.route) model
+                ]
+            , Animator.Css.div model.route
+                [ Animator.Css.transform <|
+                    \state ->
+                        if Animator.upcoming state model.route then
+                            Animator.Css.xy { x = -460, y = 0 }
+
+                        else
+                            Animator.Css.xy { x = 0, y = 0 }
+                , Animator.Css.opacity <|
+                    \state ->
+                        (if Animator.upcoming state model.route then
+                            Animator.at 0
+
+                         else
+                            Animator.at 1
+                        )
+                            |> Animator.leaveSmoothly 0
+                            |> Animator.arriveSmoothly 1
+                            |> Animator.arriveEarly 0.9
+                ]
+                [ Html.Attributes.style "inset" "0"
+                , Html.Attributes.style "position" "absolute"
+                ]
+                [ viewRoute (Animator.arrived model.route) model
+                ]
+            ]
+        ]
+    }
+
+
+viewRoute route model =
+    case model.modal of
+        Just (ImageModal image) ->
+            viewImageModal image
+
+        Just (AreYouSureModal label msg) ->
+            viewAreYouSureModal label msg
+
+        Nothing ->
             case route of
                 MainRoute ->
                     viewMainRoute model
@@ -349,25 +439,6 @@ view model =
 
                 LoginRoute guid ->
                     viewLogin model.user guid
-
-        body =
-            case model.modal of
-                Nothing ->
-                    viewRoute model.route
-
-                Just (ImageModal image) ->
-                    viewImageModal image
-
-                Just (AreYouSureModal label msg) ->
-                    viewAreYouSureModal label msg
-    in
-    { title = ""
-    , body =
-        -- The flex box will enlarge from the flex-basis. This needs to be disabled on scolling content
-        [ Html.node "style" [] [ Html.text ".s.sby {flex-basis: 0 !important;}" ]
-        , body
-        ]
-    }
 
 
 viewLogin maybeUser userId =
@@ -898,12 +969,14 @@ viewPlaygroundAdminRoute model playground =
 
 
 defaultLayout =
-    layout [ width fill, height fill ]
+    layoutWith { options = [ noStaticStyleSheet ] }
+        [ width fill, height fill ]
         << el
             [ width <| maximum 480 <| fill
             , height fill
             , centerX
-            , Border.shadow { offset = ( 0, 0 ), size = 0, blur = 64, color = rgba 0 0 0 0.2 }
+
+            -- , Border.shadow { offset = ( 0, 0 ), size = 0, blur = 64, color = rgba 0 0 0 0.2 }
             ]
 
 
@@ -990,7 +1063,7 @@ port share : ShareData -> Cmd msg
 -- Subscriptions
 
 
-subscriptions _ =
+subscriptions model =
     -- just for debugging :>
     --geoLocationUpdated <|
     --    \v ->
@@ -1006,7 +1079,20 @@ subscriptions _ =
         [ geoLocationUpdated <| (D.decodeString decodeGeoLocation >> Result.toMaybe >> GeoLocationUpdated)
         , geoLocationError <| \_ -> GeoLocationUpdated Nothing
         , storageLoaded StorageLoaded
+        , animator |> Animator.toSubscription Tick model
         ]
+
+
+animator : Animator.Animator Model
+animator =
+    Animator.animator
+        -- *NOTE*  We're using `the Animator.Css.watching` instead of `Animator.watching`.
+        -- Instead of asking for a constant stream of animation frames, it'll only ask for one
+        -- and we'll render the entire css animation in that frame.
+        |> Animator.Css.watching .route
+            (\newRoute_ model ->
+                { model | route = newRoute_ }
+            )
 
 
 
