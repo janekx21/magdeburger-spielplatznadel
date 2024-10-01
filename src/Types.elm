@@ -23,7 +23,9 @@ type alias FrontendModel =
     , route : Animator.Timeline Route
     , online : Bool
     , playgrounds : IdSet Playground
-    , currentGeoLocation : Maybe GeoLocation -- TODO dont use this as the maps view location. this could snap back at any time
+    , currentGeoLocation : Maybe GeoLocation
+    , snapGeoLocation : Bool
+    , mapCamera : Camera
     , modal : Maybe Modal
     , seeds : UUID.Seeds
     , user : Maybe User
@@ -77,6 +79,7 @@ type alias LeafletMapConfig =
     { camera : Camera
     , markers : List Marker
     , onClick : Maybe (Location -> FrontendMsg)
+    , onMove : Maybe (Camera -> FrontendMsg)
     }
 
 
@@ -167,6 +170,8 @@ type FrontendMsg
     | ImageLoaded ImageTarget String
     | ImageUploaded (Result Http.Error String)
     | Tick Time.Posix
+    | SnapToLocation
+    | CameraMoved Camera
 
 
 type alias ShareData =

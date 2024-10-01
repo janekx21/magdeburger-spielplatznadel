@@ -13,8 +13,9 @@ exports.init = async function (app) {
         // console.log("locationUpdated", geoLocation)
         app.ports.geoLocationUpdated.send(JSON.stringify(geoLocation));
       },
-      (_) => {
+      (error) => {
         // TODO some error handling like a user message
+        console.log(error);
         app.ports.geoLocationError.send("");
       },
     ); // TODO options

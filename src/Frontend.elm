@@ -16,6 +16,7 @@ import File.Select as Select
 import Html
 import Html.Attributes
 import Html.Events
+import Html.Keyed
 import Http
 import IdSet
 import Image
@@ -71,7 +72,7 @@ init url key =
             Random.independentSeed
     in
     ( { key = key
-      , route = Animator.init route
+      , route = Animator.init route |> Animator.go Animator.veryQuickly route
       , online = True
       , currentGeoLocation = Nothing
       , modal = Nothing
@@ -80,6 +81,8 @@ init url key =
       , seeds = UUID.Seeds (Random.initialSeed 1) (Random.initialSeed 2) (Random.initialSeed 3) (Random.initialSeed 4)
       , playgrounds = IdSet.empty
       , user = Nothing
+      , snapGeoLocation = False
+      , mapCamera = { location = magdeburg, zoom = 14 }
       }
     , Random.generate SetSeed (Random.map4 UUID.Seeds seed seed seed seed)
     )
@@ -238,6 +241,12 @@ update msg model =
         Tick newTime ->
             ( Animator.update newTime animator model, Cmd.none )
 
+        SnapToLocation ->
+            ( { model | snapGeoLocation = True }, Cmd.none )
+
+        CameraMoved camera ->
+            ( { model | mapCamera = camera, snapGeoLocation = Just camera.location == (model.currentGeoLocation |> Maybe.map .location) }, Cmd.none )
+
 
 newRoute : Url.Url -> Model -> Model
 newRoute url model =
@@ -319,62 +328,81 @@ view model =
     , body =
         -- The flex box will enlarge from the flex-basis. This needs to be disabled on scolling content
         [ Html.node "style" [] [ Html.text ".s.sby {flex-basis: 0 !important;}" ]
-        , Html.div
+        , Html.Keyed.node "div"
             [ Html.Attributes.style "height" "100%"
             , Html.Attributes.style "width" "100%"
             , Html.Attributes.style "position" "relative"
+            , Html.Attributes.style "overflow" "hidden"
             ]
-            [ layout [] <| none
-            , Animator.Css.div model.route
-                [ Animator.Css.transform <|
-                    \state ->
-                        if Animator.upcoming state model.route then
-                            Animator.Css.xy { x = 0, y = 0 }
+          <|
+            -- TODO try layout and Animator.linear
+            -- https://korban.net/posts/elm/2020-04-07-using-elm-animator-with-elm-ui/
+            [ ( "layout", layout [] <| none )
 
-                        else
-                            Animator.Css.xy { x = 460 * 2, y = 0 }
-                , Animator.Css.opacity <|
-                    \state ->
-                        (if Animator.upcoming state model.route then
-                            Animator.at 1
+            -- NEW STATE
+            , ( Animator.current model.route |> showRoute
+              , Animator.Css.div model.route
+                    [ Animator.Css.transform <|
+                        \state ->
+                            if Animator.upcoming state model.route then
+                                Animator.Css.xy { x = 0, y = 0 }
 
-                         else
-                            Animator.at 0
-                        )
-                            |> Animator.leaveSmoothly 0
-                            |> Animator.arriveSmoothly 1
-                ]
-                [ Html.Attributes.style "inset" "0"
-                , Html.Attributes.style "position" "absolute"
-                ]
-                [ viewRoute (Animator.current model.route) model
-                ]
-            , Animator.Css.div model.route
-                [ Animator.Css.transform <|
-                    \state ->
-                        if Animator.upcoming state model.route then
-                            Animator.Css.xy { x = -460, y = 0 }
+                            else
+                                Animator.Css.xy { x = 460 * 2, y = 0 }
+                    , Animator.Css.opacity <|
+                        \state ->
+                            (if Animator.upcoming state model.route then
+                                Animator.at 1
 
-                        else
-                            Animator.Css.xy { x = 0, y = 0 }
-                , Animator.Css.opacity <|
-                    \state ->
-                        (if Animator.upcoming state model.route then
-                            Animator.at 0
-
-                         else
-                            Animator.at 1
-                        )
-                            |> Animator.leaveSmoothly 0
-                            |> Animator.arriveSmoothly 1
-                            |> Animator.arriveEarly 0.9
-                ]
-                [ Html.Attributes.style "inset" "0"
-                , Html.Attributes.style "position" "absolute"
-                ]
-                [ viewRoute (Animator.arrived model.route) model
-                ]
+                             else
+                                Animator.at 0
+                            )
+                                |> Animator.leaveSmoothly 0
+                                |> Animator.arriveSmoothly 1
+                    ]
+                    [ Html.Attributes.style "inset" "0"
+                    , Html.Attributes.style "position" "absolute"
+                    ]
+                    [ viewRoute (Animator.current model.route) model
+                    ]
+              )
             ]
+                -- OLD STATE
+                -- ++ (if Animator.upcoming (Animator.current model.route) model.route || Animator.previous model.route == Animator.current model.route then
+                ++ [ ( Animator.arrived model.route |> showRoute
+                     , Animator.Css.div model.route
+                        [ Animator.Css.transform <|
+                            \state ->
+                                if Animator.upcoming state model.route then
+                                    Animator.Css.xy { x = -460, y = 0 }
+
+                                else
+                                    Animator.Css.xy { x = 0, y = 0 }
+                        , Animator.Css.opacity <|
+                            \state ->
+                                (if Animator.upcoming state model.route then
+                                    Animator.at 0
+
+                                 else
+                                    Animator.at 1
+                                )
+                                    |> Animator.leaveSmoothly 0
+                                    |> Animator.arriveSmoothly 1
+                                    |> Animator.arriveEarly 0.9
+                        ]
+                        [ Html.Attributes.style "inset" "0"
+                        , Html.Attributes.style "position" "absolute"
+                        , Html.Attributes.style "pointer-events" "none"
+                        ]
+                        [ viewRoute (Animator.arrived model.route) model
+                        ]
+                       -- , layout [] <| text "hi i am old"
+                     )
+                   ]
+
+        -- else
+        --     []
+        -- )
         ]
     }
 
@@ -484,11 +512,11 @@ viewMyUser maybeUser =
                                 qrCodeView <|
                                     url
 
-                        qrBase64Png =
-                            QRCode.fromString url
-                                |> Result.map
-                                    (QRCode.toImage >> Image.toPngUrl)
-                                |> Result.withDefault ""
+                        -- qrBase64Png =
+                        --     QRCode.fromString url
+                        --         |> Result.map
+                        --             (QRCode.toImage >> Image.toPngUrl)
+                        --         |> Result.withDefault ""
                     in
                     column [ width fill, height fill, spacing 16 ]
                         [ userQRCode
@@ -503,12 +531,13 @@ viewMyUser maybeUser =
                           <|
                             text user.id
                         , el [ height fill ] <| none
-                        , shareButton
-                            { files = [ qrBase64Png ]
-                            , text = "Du kannst diesen Link nutzen um dich bei der Magdeburger Spielplatznadel anzumelden."
-                            , title = "Anmeldung"
-                            , url = url
-                            }
+
+                        -- , shareButton
+                        --     { files = [] -- qrBase64Png
+                        --     , text = "Du kannst diesen Link nutzen um dich bei der Magdeburger Spielplatznadel anzumelden."
+                        --     , title = "Anmeldung"
+                        --     , url = url
+                        --     }
                         ]
             ]
 
@@ -624,7 +653,11 @@ viewMainRoute model =
                     [ viewTitle "Magdeburger Spielplatznadel"
                     , viewParapraph "Fangt jetzt an Stempel zu sammeln und schaut wie viel ihr bekommen könnt."
                     ]
-                , map (Maybe.map .location model.currentGeoLocation) (List.map playgroundMarker playgrounds)
+                , map
+                    (Maybe.map .location model.currentGeoLocation)
+                    (List.map playgroundMarker playgrounds)
+                    model.snapGeoLocation
+                    model.mapCamera
                 , column
                     [ spacing 16, width fill ]
                     (playgrounds |> List.map (playgroundItem (Maybe.map .location model.currentGeoLocation)))
@@ -916,6 +949,7 @@ viewPlaygroundAdminRoute model playground =
                     { camera = { location = playground.location, zoom = 14 }
                     , markers = [ playgroundMarker playground ]
                     , onClick = Just <| \v -> UpdatePlayground { playground | location = v }
+                    , onMove = Nothing
                     }
 
         viewMarkerAdmin : MarkerIcon -> Element FrontendMsg
@@ -1089,6 +1123,7 @@ animator =
         -- *NOTE*  We're using `the Animator.Css.watching` instead of `Animator.watching`.
         -- Instead of asking for a constant stream of animation frames, it'll only ask for one
         -- and we'll render the entire css animation in that frame.
+        -- |> Animator.watching .route
         |> Animator.Css.watching .route
             (\newRoute_ model ->
                 { model | route = newRoute_ }
@@ -1202,22 +1237,55 @@ mapPlaceholder =
             text "map"
 
 
-map location marker =
+map : Maybe Location -> List Marker -> Bool -> Camera -> Element FrontendMsg
+map location marker snap mapCamera =
+    let
+        lockButton =
+            el [ alignBottom, alignRight, padding 8 ] <|
+                Input.button
+                    [ padding 8
+                    , Background.color white
+                    , Font.color primary
+                    , Border.rounded 999
+                    , Border.shadow { offset = ( 0, 2 ), size = 0, blur = 9, color = rgba 0 0 0 0.25 }
+                    ]
+                    { label = iconSized Icons.my_location 32
+                    , onPress = Just SnapToLocation
+                    }
+
+        camera =
+            if snap then
+                { location = location |> Maybe.withDefault magdeburg
+                , zoom = 14
+                }
+
+            else
+                mapCamera
+
+        selfMarkerIcon =
+            { url = "/assets/images/self.svg", shadowUrl = "/assets/images/self_shadow.png" }
+
+        selfMarker : Location -> Marker
+        selfMarker loc =
+            { location = loc, icon = selfMarkerIcon, popupText = "" }
+
+        markersAndSelf =
+            marker |> maybeConcat (location |> Maybe.map selfMarker)
+    in
     el
         [ width fill
         , square
         , flexBasisAuto
         , Border.rounded 16
         , style "overflow" "hidden"
+        , inFront <| maybeNone <| (location |> Maybe.map (\_ -> lockButton))
         ]
     <|
         leafletMap
-            { camera =
-                { location = location |> Maybe.withDefault magdeburg
-                , zoom = 12
-                }
-            , markers = marker
+            { camera = camera
+            , markers = markersAndSelf
             , onClick = Nothing
+            , onMove = Just <| CameraMoved
             }
 
 
@@ -1230,7 +1298,7 @@ mapCollapsed playground =
         , style "overflow" "hidden"
         ]
     <|
-        leafletMap { camera = { location = playground.location, zoom = 14 }, markers = [ playgroundMarker playground ], onClick = Nothing }
+        leafletMap { camera = { location = playground.location, zoom = 14 }, markers = [ playgroundMarker playground ], onClick = Nothing, onMove = Nothing }
 
 
 leafletMap : LeafletMapConfig -> Element FrontendMsg
@@ -1242,15 +1310,30 @@ leafletMap config =
                  , Html.Attributes.style "height" "100%"
                  , Html.Attributes.style "background" "transparent"
                  ]
-                    ++ (case config.onClick of
-                            Just onClick ->
-                                [ Html.Events.on "click2" (D.map onClick (decodeDetail decodeLocation)) ]
-
-                            Nothing ->
-                                []
-                       )
+                    |> maybeConcat (config.onClick |> Maybe.map (\msg -> Html.Events.on "click_elm" (D.map msg (decodeDetail decodeLocation))))
+                    |> maybeConcat (config.onMove |> Maybe.map (\msg -> Html.Events.on "moveend_elm" (D.map msg (decodeDetail decodeCamera))))
                 )
                 []
+
+
+maybeConcat : Maybe a -> List a -> List a
+maybeConcat maybeItem list =
+    case maybeItem of
+        Nothing ->
+            list
+
+        Just item ->
+            list ++ [ item ]
+
+
+maybeNone : Maybe (Element a) -> Element a
+maybeNone may =
+    case may of
+        Nothing ->
+            none
+
+        Just element ->
+            element
 
 
 playgroundItemPlaceholder km =
@@ -1444,11 +1527,16 @@ viewAward offX offY found award =
 
 buttonAwards =
     link
-        [ Background.color secondaryDark
+        [ Background.color primaryDark
         , Border.rounded 999
         , padding 16
         , Font.color white
-        , Border.shadow { offset = ( 0, 4 ), size = 0, blur = 18, color = rgba 0 0 0 0.25 }
+        , Border.shadow
+            { offset = ( 0, 4 )
+            , size = 0
+            , blur = 18
+            , color = rgba 0.05 0.2 0.1 0.25
+            }
         ]
     <|
         { label =
@@ -1535,6 +1623,34 @@ routeParser =
         ]
 
 
+showRoute : Route -> String
+showRoute route =
+    case route of
+        MainRoute ->
+            ""
+
+        PlaygroundRoute guid ->
+            "playground/" ++ guid
+
+        AwardsRoute ->
+            "award"
+
+        NewAwardRoute guid ->
+            "new-award/" ++ guid
+
+        AdminRoute ->
+            "admin"
+
+        PlaygroundAdminRoute guid ->
+            "admin/playground/" ++ guid
+
+        MyUserRoute ->
+            "my-user"
+
+        LoginRoute guid ->
+            "login/" ++ guid
+
+
 wrapInAreYouSure label msg =
     OpenModal <| AreYouSureModal label <| msg
 
@@ -1595,6 +1711,13 @@ decodeLocation =
     D.map2 Location
         (D.field "lat" D.float)
         (D.field "lng" D.float)
+
+
+decodeCamera : D.Decoder Camera
+decodeCamera =
+    D.map2 Camera
+        (D.field "location" decodeLocation)
+        (D.field "zoom" D.int)
 
 
 decodeGeoLocation : D.Decoder GeoLocation
@@ -1695,6 +1818,10 @@ locationDistanceInKilometers loc1 loc2 =
 
 primary =
     rgb255 151 214 115
+
+
+primaryDark =
+    rgb255 112 205 58
 
 
 secondary =
