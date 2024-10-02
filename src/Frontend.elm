@@ -5,12 +5,12 @@ import Animator.Css
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Common exposing (..)
-import Element exposing (..)
-import Element.Background as Background
-import Element.Border as Border
-import Element.Events
-import Element.Font as Font
-import Element.Input as Input
+import Element.WithContext as ConEl exposing (..)
+import Element.WithContext.Background as Background
+import Element.WithContext.Border as Border
+import Element.WithContext.Events as Events
+import Element.WithContext.Font as Font
+import Element.WithContext.Input as Input
 import File
 import File.Select as Select
 import Html
@@ -40,6 +40,22 @@ import Url.Parser as UP exposing ((</>), Parser, oneOf)
 
 type alias Model =
     FrontendModel
+
+
+type alias ContextElement msg =
+    ConEl.Element Context msg
+
+
+type alias ContextAttribute msg =
+    ConEl.Attribute Context msg
+
+
+type alias ContextAttr decorative msg =
+    ConEl.Attr Context decorative msg
+
+
+type alias Context =
+    {}
 
 
 
@@ -324,6 +340,10 @@ updateFromBackend msg model =
 
 view : Model -> Browser.Document FrontendMsg
 view model =
+    let
+        context =
+            {}
+    in
     { title = ""
     , body =
         -- The flex box will enlarge from the flex-basis. This needs to be disabled on scolling content
@@ -337,7 +357,7 @@ view model =
           <|
             -- TODO try layout and Animator.linear
             -- https://korban.net/posts/elm/2020-04-07-using-elm-animator-with-elm-ui/
-            [ ( "layout", layout [] <| none )
+            [ ( "layout", layout context [] <| none )
 
             -- NEW STATE
             , ( Animator.current model.route |> showRoute
@@ -363,7 +383,7 @@ view model =
                     [ Html.Attributes.style "inset" "0"
                     , Html.Attributes.style "position" "absolute"
                     ]
-                    [ viewRoute (Animator.current model.route) model
+                    [ viewRoute context (Animator.current model.route) model
                     ]
               )
             ]
@@ -394,7 +414,7 @@ view model =
                         , Html.Attributes.style "position" "absolute"
                         , Html.Attributes.style "pointer-events" "none"
                         ]
-                        [ viewRoute (Animator.arrived model.route) model
+                        [ viewRoute context (Animator.arrived model.route) model
                         ]
                        -- , layout [] <| text "hi i am old"
                      )
@@ -407,21 +427,21 @@ view model =
     }
 
 
-viewRoute route model =
+viewRoute context route model =
     case model.modal of
         Just (ImageModal image) ->
-            viewImageModal image
+            viewImageModal context image
 
         Just (AreYouSureModal label msg) ->
-            viewAreYouSureModal label msg
+            viewAreYouSureModal context label msg
 
         Nothing ->
             case route of
                 MainRoute ->
-                    viewMainRoute model
+                    viewMainRoute context model
 
                 AwardsRoute ->
-                    viewAwardsRoute model
+                    viewAwardsRoute context model
 
                 PlaygroundRoute guid ->
                     let
@@ -430,7 +450,7 @@ viewRoute route model =
                     in
                     case playground of
                         Just p ->
-                            viewPlaygroundRoute model p
+                            viewPlaygroundRoute context model p
 
                         Nothing ->
                             Html.text <| "the playground " ++ guid ++ " does not exist"
@@ -442,13 +462,13 @@ viewRoute route model =
                     in
                     case award of
                         Just a ->
-                            viewNewAwardRoute model a
+                            viewNewAwardRoute context model a
 
                         Nothing ->
                             Html.text <| "the award " ++ guid ++ " does not exist"
 
                 AdminRoute ->
-                    viewAdminRoute model
+                    viewAdminRoute context model
 
                 PlaygroundAdminRoute guid ->
                     let
@@ -457,20 +477,20 @@ viewRoute route model =
                     in
                     case playground of
                         Just p ->
-                            viewPlaygroundAdminRoute model p
+                            viewPlaygroundAdminRoute context model p
 
                         Nothing ->
                             Html.text <| "the playground " ++ guid ++ " does not exist"
 
                 MyUserRoute ->
-                    viewMyUser model.user
+                    viewMyUser context model.user
 
                 LoginRoute guid ->
-                    viewLogin model.user guid
+                    viewLogin context model.user guid
 
 
-viewLogin maybeUser userId =
-    defaultLayout <|
+viewLogin context maybeUser userId =
+    defaultLayout context <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 24, width fill, centerY ] <|
                 case maybeUser of
@@ -491,8 +511,8 @@ viewLogin maybeUser userId =
             ]
 
 
-viewMyUser maybeUser =
-    defaultLayout <|
+viewMyUser context maybeUser =
+    defaultLayout context <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 24, width fill ]
                 [ viewTitle "Dein Account"
@@ -542,7 +562,7 @@ viewMyUser maybeUser =
             ]
 
 
-qrCodeView : String -> Element msg
+qrCodeView : String -> ContextElement msg
 qrCodeView message =
     QRCode.fromString message
         |> Result.map
@@ -555,7 +575,7 @@ qrCodeView message =
         |> html
 
 
-viewImageModal i =
+viewImageModal context i =
     let
         close =
             Input.button [] <|
@@ -573,12 +593,14 @@ viewImageModal i =
             el
                 [ height fill
                 , width fill
-                , Element.Events.onClick <| CloseModal
+                , Events.onClick <| CloseModal
                 ]
             <|
                 none
     in
-    defaultLayout <|
+    defaultLayout
+        context
+    <|
         el
             [ width fill
             , height fill
@@ -597,19 +619,21 @@ viewImageModal i =
                     , centerY
                     , Border.rounded 16
                     , style "overflow" "hidden"
-                    , Element.Events.onClick <| NoOpFrontendMsg
+                    , Events.onClick <| NoOpFrontendMsg
                     ]
                     { src = i.url, description = i.description }
                 , closingTrigger
                 ]
 
 
-viewAreYouSureModal label msg =
+viewAreYouSureModal context label msg =
     let
         button attr msg_ label_ =
             Input.button ([ Font.color black, padding 8, Border.rounded 8, width fill ] ++ attr) { onPress = Just msg_, label = el [ centerX ] <| text label_ }
     in
-    defaultLayout <|
+    defaultLayout
+        context
+    <|
         el
             [ width fill
             , height fill
@@ -628,8 +652,8 @@ viewAreYouSureModal label msg =
                 ]
 
 
-viewMainRoute : Model -> Html.Html FrontendMsg
-viewMainRoute model =
+viewMainRoute : Context -> Model -> Html.Html FrontendMsg
+viewMainRoute context model =
     let
         playgrounds =
             case model.currentGeoLocation of
@@ -639,7 +663,7 @@ viewMainRoute model =
                 Nothing ->
                     model.playgrounds |> IdSet.toList
     in
-    defaultLayout <|
+    defaultLayout context <|
         el
             [ width fill
             , height fill
@@ -717,8 +741,7 @@ viewMainRoute model =
                 ]
 
 
-viewAwardsRoute : Model -> Html.Html msg
-viewAwardsRoute model =
+viewAwardsRoute context model =
     let
         bound =
             el [ paddingXY 0 2, centerX, height fill ] <|
@@ -728,7 +751,9 @@ viewAwardsRoute model =
         dot =
             el [ width (px 12), height (px 12), Background.color secondaryDark, Border.rounded 999 ] <| none
     in
-    defaultLayout <|
+    defaultLayout
+        context
+    <|
         el [ width fill, height fill, behindContent <| el [ height fill, width (px 24), padding 8 ] <| column [ centerX, height fill ] <| (List.repeat 12 dot |> List.intersperse bound) ] <|
             column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
                 [ column [ spacing 24, width fill ]
@@ -739,7 +764,7 @@ viewAwardsRoute model =
                 ]
 
 
-viewAwardList : IdSet.IdSet Award -> List Award -> Element msg
+viewAwardList : IdSet.IdSet Award -> List Award -> ContextElement msg
 viewAwardList found awards =
     let
         ( offX, offY ) =
@@ -759,8 +784,8 @@ viewAwardList found awards =
 -- TODO map the user to the awards collected state
 
 
-viewNewAwardRoute model award =
-    defaultLayout <|
+viewNewAwardRoute context model award =
+    defaultLayout context <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column
                 [ spacing 16
@@ -802,9 +827,8 @@ viewNewAwardRoute model award =
             ]
 
 
-viewPlaygroundRoute : Model -> Playground -> Html.Html FrontendMsg
-viewPlaygroundRoute model playground =
-    defaultLayout <|
+viewPlaygroundRoute context model playground =
+    defaultLayout context <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
             , column [ spacing 32, width fill ]
@@ -821,8 +845,7 @@ viewPlaygroundRoute model playground =
 -- TODO remove stuff like playgrounds
 
 
-viewAdminRoute : Model -> Html.Html FrontendMsg
-viewAdminRoute model =
+viewAdminRoute context model =
     let
         addPlaygroundButton =
             Input.button
@@ -838,7 +861,9 @@ viewAdminRoute model =
                 , label = el [ centerX, centerY ] <| icon Icons.add
                 }
     in
-    defaultLayout <|
+    defaultLayout
+        context
+    <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 24, width fill ]
                 [ viewTitle "Admin Seite"
@@ -850,8 +875,7 @@ viewAdminRoute model =
             ]
 
 
-viewPlaygroundAdminRoute : Model -> Playground -> Html.Html FrontendMsg
-viewPlaygroundAdminRoute model playground =
+viewPlaygroundAdminRoute context model playground =
     let
         adminGeneral =
             column [ spacing 32, width fill ]
@@ -862,7 +886,7 @@ viewPlaygroundAdminRoute model playground =
         imageUpload =
             cuteButton (ImageRequested <| PlaygroundImageTarget playground) <| text "Bild hochladen"
 
-        viewImagesAdmin : List Img -> Element FrontendMsg
+        viewImagesAdmin : List Img -> ContextElement FrontendMsg
         viewImagesAdmin images =
             column [ width fill, spacing 16 ]
                 [ column [ width fill, spacing 16 ]
@@ -902,7 +926,7 @@ viewPlaygroundAdminRoute model playground =
         --     { onPress = Just <| UpdatePlayground { playground | images = playground.images ++ [ { url = "", description = "" } ] }
         --     , label = row [ centerX, centerY, spacing 8 ] [ icon Icons.add, icon Icons.image ]
         --     }
-        viewAwardItemAdmin : Award -> Element FrontendMsg
+        viewAwardItemAdmin : Award -> ContextElement FrontendMsg
         viewAwardItemAdmin award =
             column
                 [ Border.color secondary
@@ -952,7 +976,7 @@ viewPlaygroundAdminRoute model playground =
                     , onMove = Nothing
                     }
 
-        viewMarkerAdmin : MarkerIcon -> Element FrontendMsg
+        viewMarkerAdmin : MarkerIcon -> ContextElement FrontendMsg
         viewMarkerAdmin marker =
             let
                 real =
@@ -986,7 +1010,9 @@ viewPlaygroundAdminRoute model playground =
         viewDeleteButton =
             cuteButton (RemovePlaygroundLocal playground) <| row [] [ icon Icons.delete, text "Speilplatz löschen" ]
     in
-    defaultLayout <|
+    defaultLayout
+        context
+    <|
         column
             [ width fill, height fill, spacing 128, padding 22, scrollbarY ]
             ([ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
@@ -1002,8 +1028,9 @@ viewPlaygroundAdminRoute model playground =
             )
 
 
-defaultLayout =
-    layoutWith { options = [ noStaticStyleSheet ] }
+defaultLayout context =
+    layoutWith context
+        { options = [ noStaticStyleSheet ] }
         [ width fill, height fill ]
         << el
             [ width <| maximum 480 <| fill
@@ -1237,7 +1264,7 @@ mapPlaceholder =
             text "map"
 
 
-map : Maybe Location -> List Marker -> Bool -> Camera -> Element FrontendMsg
+map : Maybe Location -> List Marker -> Bool -> Camera -> ContextElement FrontendMsg
 map location marker snap mapCamera =
     let
         lockButton =
@@ -1301,7 +1328,7 @@ mapCollapsed playground =
         leafletMap { camera = { location = playground.location, zoom = 14 }, markers = [ playgroundMarker playground ], onClick = Nothing, onMove = Nothing }
 
 
-leafletMap : LeafletMapConfig -> Element FrontendMsg
+leafletMap : LeafletMapConfig -> ContextElement FrontendMsg
 leafletMap config =
     el [ behindContent <| el [ Background.image "/assets/images/map_background.jpg", width fill, height fill ] none, height fill, width fill ] <|
         html <|
@@ -1326,7 +1353,7 @@ maybeConcat maybeItem list =
             list ++ [ item ]
 
 
-maybeNone : Maybe (Element a) -> Element a
+maybeNone : Maybe (ContextElement a) -> ContextElement a
 maybeNone may =
     case may of
         Nothing ->
@@ -1356,7 +1383,7 @@ playgroundItemPlaceholder km =
         }
 
 
-playgroundItem : Maybe Location -> Playground -> Element msg
+playgroundItem : Maybe Location -> Playground -> ContextElement msg
 playgroundItem location playground =
     let
         viewDistance loc =
@@ -1389,7 +1416,7 @@ playgroundItem location playground =
         }
 
 
-playgroundAdminItem : Playground -> Element msg
+playgroundAdminItem : Playground -> ContextElement msg
 playgroundAdminItem playground =
     link
         [ Border.rounded 16
@@ -1465,7 +1492,7 @@ awardPlaceholder got offX offY new =
         none
 
 
-viewAward : Float -> Float -> Bool -> Award -> Element msg
+viewAward : Float -> Float -> Bool -> Award -> ContextElement msg
 viewAward offX offY found award =
     let
         new =
@@ -1571,12 +1598,12 @@ closeButton =
         }
 
 
-icon : Icon msg -> Element msg
+icon : Icon msg -> ContextElement msg
 icon icon_ =
     iconSized icon_ 24
 
 
-iconSized : Icon msg -> Int -> Element msg
+iconSized : Icon msg -> Int -> ContextElement msg
 iconSized icon_ size =
     el [] <| html <| icon_ size Material.Icons.Types.Inherit
 
