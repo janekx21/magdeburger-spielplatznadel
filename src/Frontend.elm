@@ -42,15 +42,15 @@ type alias Model =
     FrontendModel
 
 
-type alias ContextElement msg =
+type alias Element msg =
     ConEl.Element Context msg
 
 
-type alias ContextAttribute msg =
+type alias Attribute msg =
     ConEl.Attribute Context msg
 
 
-type alias ContextAttr decorative msg =
+type alias Attr decorative msg =
     ConEl.Attr Context decorative msg
 
 
@@ -82,7 +82,7 @@ init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
 init url key =
     let
         route =
-            parseUrl url
+            urlToRoute url
 
         seed =
             Random.independentSeed
@@ -132,7 +132,7 @@ update msg model =
                 Nothing ->
                     let
                         route =
-                            parseUrl url
+                            urlToRoute url
                     in
                     let
                         collectCmd =
@@ -269,7 +269,7 @@ newRoute url model =
     { model
         | route =
             model.route
-                |> Animator.go (Animator.millis 500) (parseUrl url)
+                |> Animator.go (Animator.millis 500) (urlToRoute url)
     }
 
 
@@ -360,7 +360,7 @@ view model =
             [ ( "layout", layout context [] <| none )
 
             -- NEW STATE
-            , ( Animator.current model.route |> showRoute
+            , ( Animator.current model.route |> routeToAbsUrlString
               , Animator.Css.div model.route
                     [ Animator.Css.transform <|
                         \state ->
@@ -389,7 +389,7 @@ view model =
             ]
                 -- OLD STATE
                 -- ++ (if Animator.upcoming (Animator.current model.route) model.route || Animator.previous model.route == Animator.current model.route then
-                ++ [ ( Animator.arrived model.route |> showRoute
+                ++ [ ( Animator.arrived model.route |> routeToAbsUrlString
                      , Animator.Css.div model.route
                         [ Animator.Css.transform <|
                             \state ->
@@ -434,6 +434,9 @@ viewRoute context route model =
 
         Just (AreYouSureModal label msg) ->
             viewAreYouSureModal context label msg
+
+        Just (AwardPreviewModal award) ->
+            viewAwardPreview context award
 
         Nothing ->
             case route of
@@ -491,7 +494,7 @@ viewRoute context route model =
 
 viewLogin context maybeUser userId =
     defaultLayout context <|
-        column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+        column [ width fill, height fill, spacing 32, padding 22 ]
             [ column [ spacing 24, width fill, centerY ] <|
                 case maybeUser of
                     Nothing ->
@@ -511,6 +514,10 @@ viewLogin context maybeUser userId =
             ]
 
 
+baseUrl =
+    "https://magdeburger-spielplatznadel-develop.lamdera.app"
+
+
 viewMyUser context maybeUser =
     defaultLayout context <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
@@ -525,7 +532,7 @@ viewMyUser context maybeUser =
                 Just user ->
                     let
                         url =
-                            "https://magdeburger-spielplatznadel-develop.lamdera.app/login/" ++ user.id
+                            baseUrl ++ "/login/" ++ user.id
 
                         userQRCode =
                             el [ width fill, height fill ] <|
@@ -562,7 +569,7 @@ viewMyUser context maybeUser =
             ]
 
 
-qrCodeView : String -> ContextElement msg
+qrCodeView : String -> Element msg
 qrCodeView message =
     QRCode.fromString message
         |> Result.map
@@ -652,6 +659,38 @@ viewAreYouSureModal context label msg =
                 ]
 
 
+viewAwardPreview : Context -> Award -> Html.Html FrontendMsg
+viewAwardPreview context award =
+    let
+        url =
+            (\u -> baseUrl ++ u) <| routeToAbsUrlString <| NewAwardRoute <| award.id
+    in
+    defaultLayout context <|
+        el
+            [ width fill
+            , height fill
+
+            -- , Font.color white
+            -- , Background.color black
+            -- , Font.size 32
+            , Border.color primaryDarker
+            , Border.width 16
+            , Border.rounded 64
+            , Background.color primary
+
+            -- , padding 32
+            ]
+        <|
+            column [ width fill, height fill ]
+                [ el [ padding 32, width fill ] <| el [ Background.color white, width fill, Border.rounded 32 ] <| qrCodeView <| url
+                , el [ width fill, height (px 128), Background.color primaryDark, scale 1.07 ] <|
+                    row [ paddingXY 64 8, width fill, height fill ]
+                        [ el [ alignRight, Font.color primaryDarker, langarFont, Font.size 48, centerY ] <| text <| award.title ++ "\n Stempel"
+                        ]
+                , el [ centerX, centerY, scale 2 ] <| viewAward 2 4 True award
+                ]
+
+
 viewMainRoute : Context -> Model -> Html.Html FrontendMsg
 viewMainRoute context model =
     let
@@ -667,6 +706,7 @@ viewMainRoute context model =
         el
             [ width fill
             , height fill
+            , scrollbarY
             , inFront <|
                 el [ alignBottom, alignRight, padding 32 ] <|
                     buttonAwards
@@ -764,7 +804,7 @@ viewAwardsRoute context model =
                 ]
 
 
-viewAwardList : IdSet.IdSet Award -> List Award -> ContextElement msg
+viewAwardList : IdSet.IdSet Award -> List Award -> Element msg
 viewAwardList found awards =
     let
         ( offX, offY ) =
@@ -886,7 +926,7 @@ viewPlaygroundAdminRoute context model playground =
         imageUpload =
             cuteButton (ImageRequested <| PlaygroundImageTarget playground) <| text "Bild hochladen"
 
-        viewImagesAdmin : List Img -> ContextElement FrontendMsg
+        viewImagesAdmin : List Img -> Element FrontendMsg
         viewImagesAdmin images =
             column [ width fill, spacing 16 ]
                 [ column [ width fill, spacing 16 ]
@@ -926,7 +966,7 @@ viewPlaygroundAdminRoute context model playground =
         --     { onPress = Just <| UpdatePlayground { playground | images = playground.images ++ [ { url = "", description = "" } ] }
         --     , label = row [ centerX, centerY, spacing 8 ] [ icon Icons.add, icon Icons.image ]
         --     }
-        viewAwardItemAdmin : Award -> ContextElement FrontendMsg
+        viewAwardItemAdmin : Award -> Element FrontendMsg
         viewAwardItemAdmin award =
             column
                 [ Border.color secondary
@@ -937,6 +977,7 @@ viewPlaygroundAdminRoute context model playground =
                 , inFront <| cuteLabel "Stempel"
                 , spacing 16
                 , inFront <| el [ moveUp 18, moveLeft 18 ] <| removeButton (UpdatePlayground { playground | awards = removeItemViaId award playground.awards })
+                , inFront <| el [ alignRight, moveUp 18, moveRight 18 ] <| previewButton <| OpenModal <| AwardPreviewModal award
                 ]
                 [ row [ width fill, spaceEvenly ]
                     [ viewAward 8 8 True award
@@ -976,7 +1017,7 @@ viewPlaygroundAdminRoute context model playground =
                     , onMove = Nothing
                     }
 
-        viewMarkerAdmin : MarkerIcon -> ContextElement FrontendMsg
+        viewMarkerAdmin : MarkerIcon -> Element FrontendMsg
         viewMarkerAdmin marker =
             let
                 real =
@@ -1014,7 +1055,7 @@ viewPlaygroundAdminRoute context model playground =
         context
     <|
         column
-            [ width fill, height fill, spacing 128, padding 22, scrollbarY ]
+            [ width fill, height fill, spacing 128, padding 22 ]
             ([ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
              , adminGeneral
              , viewMarkerAdmin playground.markerIcon
@@ -1036,6 +1077,7 @@ defaultLayout context =
             [ width <| maximum 480 <| fill
             , height fill
             , centerX
+            , scrollbarY
 
             -- , Border.shadow { offset = ( 0, 0 ), size = 0, blur = 64, color = rgba 0 0 0 0.2 }
             ]
@@ -1052,6 +1094,20 @@ removeButton msg =
         ]
         { onPress = Just <| wrapInAreYouSure "Bist du dir sicher, dass du das wirklich löschen willst?" <| msg
         , label = icon Icons.delete
+        }
+
+
+previewButton msg =
+    Input.button
+        [ Font.color primary
+        , Background.color white
+        , Border.color secondary
+        , Border.width 2
+        , padding 4
+        , Border.rounded 999
+        ]
+        { onPress = Just <| msg
+        , label = icon Icons.qr_code_2
         }
 
 
@@ -1260,11 +1316,11 @@ mapPlaceholder =
         , flexBasisAuto
         ]
     <|
-        el [ centerX, centerY, itim, Font.color secondaryDark ] <|
+        el [ centerX, centerY, itimFont, Font.color secondaryDark ] <|
             text "map"
 
 
-map : Maybe Location -> List Marker -> Bool -> Camera -> ContextElement FrontendMsg
+map : Maybe Location -> List Marker -> Bool -> Camera -> Element FrontendMsg
 map location marker snap mapCamera =
     let
         lockButton =
@@ -1328,7 +1384,7 @@ mapCollapsed playground =
         leafletMap { camera = { location = playground.location, zoom = 14 }, markers = [ playgroundMarker playground ], onClick = Nothing, onMove = Nothing }
 
 
-leafletMap : LeafletMapConfig -> ContextElement FrontendMsg
+leafletMap : LeafletMapConfig -> Element FrontendMsg
 leafletMap config =
     el [ behindContent <| el [ Background.image "/assets/images/map_background.jpg", width fill, height fill ] none, height fill, width fill ] <|
         html <|
@@ -1353,7 +1409,7 @@ maybeConcat maybeItem list =
             list ++ [ item ]
 
 
-maybeNone : Maybe (ContextElement a) -> ContextElement a
+maybeNone : Maybe (Element a) -> Element a
 maybeNone may =
     case may of
         Nothing ->
@@ -1375,7 +1431,7 @@ playgroundItemPlaceholder km =
         { label =
             row [ centerY, width fill, Font.color secondaryDark ]
                 [ icon Icons.local_play
-                , el [ alignRight, itim, Font.size 24 ] <|
+                , el [ alignRight, itimFont, Font.size 24 ] <|
                     text <|
                         (String.fromFloat km ++ "km")
                 ]
@@ -1383,7 +1439,7 @@ playgroundItemPlaceholder km =
         }
 
 
-playgroundItem : Maybe Location -> Playground -> ContextElement msg
+playgroundItem : Maybe Location -> Playground -> Element msg
 playgroundItem location playground =
     let
         viewDistance loc =
@@ -1394,7 +1450,7 @@ playgroundItem location playground =
                 kmString =
                     toFloat (round (km * 100)) / 100 |> String.fromFloat
             in
-            el [ alignRight, itim, Font.size 24 ] <|
+            el [ alignRight, itimFont, Font.size 24 ] <|
                 text <|
                     (kmString ++ "km")
     in
@@ -1416,7 +1472,7 @@ playgroundItem location playground =
         }
 
 
-playgroundAdminItem : Playground -> ContextElement msg
+playgroundAdminItem : Playground -> Element msg
 playgroundAdminItem playground =
     link
         [ Border.rounded 16
@@ -1492,7 +1548,7 @@ awardPlaceholder got offX offY new =
         none
 
 
-viewAward : Float -> Float -> Bool -> Award -> ContextElement msg
+viewAward : Float -> Float -> Bool -> Award -> Element msg
 viewAward offX offY found award =
     let
         new =
@@ -1547,7 +1603,7 @@ viewAward offX offY found award =
         , Border.color secondary
         , Border.width 8
         , Border.dashed
-        , inFront <| paragraph [ centerY, centerX, itim, Font.color secondary, padding 10, Font.center ] [ text award.title ]
+        , inFront <| paragraph [ centerY, centerX, itimFont, Font.color secondary, padding 10, Font.center ] [ text award.title ]
         , inFront <| displayIf got awardEl
         ]
 
@@ -1598,12 +1654,12 @@ closeButton =
         }
 
 
-icon : Icon msg -> ContextElement msg
+icon : Icon msg -> Element msg
 icon icon_ =
     iconSized icon_ 24
 
 
-iconSized : Icon msg -> Int -> ContextElement msg
+iconSized : Icon msg -> Int -> Element msg
 iconSized icon_ size =
     el [] <| html <| icon_ size Material.Icons.Types.Inherit
 
@@ -1632,7 +1688,7 @@ magdeburg =
     { lat = 52.131667, lng = 11.639167 }
 
 
-parseUrl url =
+urlToRoute url =
     UP.parse routeParser url |> Maybe.withDefault MainRoute
 
 
@@ -1650,32 +1706,32 @@ routeParser =
         ]
 
 
-showRoute : Route -> String
-showRoute route =
+routeToAbsUrlString : Route -> String
+routeToAbsUrlString route =
     case route of
         MainRoute ->
-            ""
+            "/"
 
         PlaygroundRoute guid ->
-            "playground/" ++ guid
+            "/playground/" ++ guid
 
         AwardsRoute ->
-            "award"
+            "/award"
 
         NewAwardRoute guid ->
-            "new-award/" ++ guid
+            "/new-award/" ++ guid
 
         AdminRoute ->
-            "admin"
+            "/admin"
 
         PlaygroundAdminRoute guid ->
-            "admin/playground/" ++ guid
+            "/admin/playground/" ++ guid
 
         MyUserRoute ->
-            "my-user"
+            "/my-user"
 
         LoginRoute guid ->
-            "login/" ++ guid
+            "/login/" ++ guid
 
 
 wrapInAreYouSure label msg =
@@ -1781,8 +1837,12 @@ justifyCenter =
     style "justify-content" "center"
 
 
-itim =
+itimFont =
     Font.family [ Font.typeface "Itim" ]
+
+
+langarFont =
+    Font.family [ Font.typeface "Langar" ]
 
 
 style key value =
@@ -1844,11 +1904,15 @@ locationDistanceInKilometers loc1 loc2 =
 
 
 primary =
-    rgb255 151 214 115
+    rgb255 235 58 58
 
 
 primaryDark =
-    rgb255 112 205 58
+    rgb255 153 13 13
+
+
+primaryDarker =
+    rgb255 93 9 9
 
 
 secondary =

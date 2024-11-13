@@ -35,6 +35,7 @@ type alias FrontendModel =
 type Modal
     = ImageModal Img
     | AreYouSureModal String FrontendMsg
+    | AwardPreviewModal Award
 
 
 type Route
