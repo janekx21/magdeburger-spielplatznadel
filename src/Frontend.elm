@@ -73,7 +73,7 @@ init url key =
             Random.independentSeed
     in
     ( { key = key
-      , route = Animator.init route |> Animator.go Animator.immediately route
+      , route = Animator.init route |> Animator.go Animator.veryQuickly route
       , online = True
       , currentGeoLocation = Nothing
       , modal = Nothing
@@ -129,8 +129,27 @@ update msg model =
 
                                 _ ->
                                     Cmd.none
+
+                        -- Use this to inject some additional state
+                        -- that is url dependent
+                        updateMiddleware : Model -> Model
+                        updateMiddleware m =
+                            case route of
+                                PlaygroundRoute guid ->
+                                    { m | focusedPlayground = model.playgrounds |> IdSet.get guid }
+
+                                MainRoute ->
+                                    case m.focusedPlayground of
+                                        Nothing ->
+                                            m
+
+                                        Just p ->
+                                            { m | mapCamera = { location = p.location, zoom = 8 } }
+
+                                _ ->
+                                    m
                     in
-                    ( newRoute url model
+                    ( newRoute url model |> updateMiddleware
                     , collectCmd
                     )
 
