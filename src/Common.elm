@@ -61,5 +61,13 @@ removeInList list index =
         |> Dict.values
 
 
+getItemInList : List a -> Int -> Maybe a
+getItemInList list index =
+    list
+        |> List.indexedMap (\i x -> ( i, x ))
+        |> Dict.fromList
+        |> Dict.get index
+
+
 defaultMarkerIcon =
     { url = "/assets/images/playground_icon_1.png", shadowUrl = "/assets/images/playground_icon_1_shadow.png" }

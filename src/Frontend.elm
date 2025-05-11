@@ -5,9 +5,10 @@ import Animator.Css
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Common exposing (..)
+import Dict
 import Element exposing (..)
 import Element.Background as Background
-import Element.Border as Border
+import Element.Border as Border exposing (rounded)
 import Element.Events
 import Element.Font as Font
 import Element.Input as Input
@@ -72,7 +73,7 @@ init url key =
             Random.independentSeed
     in
     ( { key = key
-      , route = Animator.init route |> Animator.go Animator.veryQuickly route
+      , route = Animator.init route |> Animator.go Animator.immediately route
       , online = True
       , currentGeoLocation = Nothing
       , modal = Nothing
@@ -83,6 +84,8 @@ init url key =
       , user = Nothing
       , snapGeoLocation = False
       , mapCamera = { location = magdeburg, zoom = 14 }
+      , deleteHashes = Dict.empty
+      , focusedPlayground = Nothing
       }
     , Random.generate SetSeed (Random.map4 UUID.Seeds seed seed seed seed)
     )
@@ -147,7 +150,27 @@ update msg model =
             ( { model | modal = Nothing }, Cmd.none )
 
         UpdatePlayground playground ->
-            ( { model | playgrounds = model.playgrounds |> IdSet.insert playground }, Lamdera.sendToBackend <| UploadPlayground playground )
+            updatePlayground model playground
+
+        RemovePlaygroundImage playground index ->
+            let
+                maybeHash =
+                    getItemInList playground.images index
+                        |> Maybe.andThen (\img -> Dict.get img.url model.deleteHashes)
+            in
+            case maybeHash of
+                Just hash ->
+                    let
+                        delteCmd =
+                            imageDeleteCmd hash
+
+                        ( updateModel, updateCmd ) =
+                            updatePlayground model { playground | images = removeInList playground.images index }
+                    in
+                    ( updateModel, Cmd.batch [ updateCmd, delteCmd ] )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         AddPlayground ->
             let
@@ -221,22 +244,35 @@ update msg model =
             ( model, Select.file [ "image/*" ] (ImageSelected target) )
 
         ImageSelected target file ->
-            -- ( model, Lamdera.sendToBackend <| UploadImage file )
             ( model
-            , File.toUrl file
-                |> Task.perform (ImageLoaded target)
+            , imageUploadCmd target file
             )
 
-        ImageLoaded target dataUrl ->
-            -- ( model, Lamdera.sendToBackend <| UploadImage bytes )
-            ( model, imageUploadCmd dataUrl )
+        ImageUploaded target result ->
+            case result of
+                Ok imgurImage ->
+                    case target of
+                        PlaygroundImageTarget playground ->
+                            let
+                                ( updateModel, updateCmd ) =
+                                    updatePlayground model { playground | images = playground.images ++ [ { url = imgurImage.link } ] }
+                            in
+                            ( updateModel, Cmd.batch [ updateCmd, Lamdera.sendToBackend (AddDeleteHash imgurImage.link imgurImage.deleteHash) ] )
 
-        ImageUploaded result ->
-            -- let
-            --     _ =
-            --         Debug.log "image upload result" result
-            -- in
-            ( model, Cmd.none )
+                Err err ->
+                    ( model, Cmd.none )
+
+        ImageDeleted result ->
+            let
+                _ =
+                    Debug.log "ImageDeleted" result
+            in
+            case result of
+                Ok _ ->
+                    ( model, Cmd.none )
+
+                Err _ ->
+                    ( model, Cmd.none )
 
         Tick newTime ->
             ( Animator.update newTime animator model, Cmd.none )
@@ -246,6 +282,16 @@ update msg model =
 
         CameraMoved camera ->
             ( { model | mapCamera = camera, snapGeoLocation = Just camera.location == (model.currentGeoLocation |> Maybe.map .location) }, Cmd.none )
+
+        MarkerClicked marker ->
+            ( { model | focusedPlayground = model.playgrounds |> IdSet.toList |> List.filter (\p -> p.location == marker.location) |> List.head }, Cmd.none )
+
+        UnfocusPlayground ->
+            ( { model | focusedPlayground = Nothing }, Cmd.none )
+
+
+updatePlayground model playground =
+    ( { model | playgrounds = model.playgrounds |> IdSet.insert playground }, Lamdera.sendToBackend <| UploadPlayground playground )
 
 
 newRoute : Url.Url -> Model -> Model
@@ -257,22 +303,126 @@ newRoute url model =
     }
 
 
-imageUploadCmd dataUrl =
-    Http.post
-        { url = "https://api.imgur.com/3/image"
-        , expect = Http.expectString ImageUploaded
+imageUploadCmd : ImageTarget -> File.File -> Cmd FrontendMsg
+imageUploadCmd target file =
+    Http.request
+        { method = "POST"
+        , headers =
+            [ Http.header "Authorization" "Client-ID d39e7a51841a2f1"
+            ]
+        , url = "https://api.imgur.com/3/image"
+        , expect = Http.expectJson (ImageUploaded target) imgurImageDecoder
+        , timeout = Nothing
+        , tracker = Nothing
         , body =
-            Http.jsonBody <|
-                E.object
-                    [ ( "image", E.string dataUrl )
-                    ]
+            Http.multipartBody
+                [ Http.stringPart "title" "simple image number one"
+                , Http.stringPart "description" "simple description number two"
+                , Http.filePart "image" file
+                , Http.stringPart "type" "file"
+                ]
+        }
 
-        -- Http.multipartBody
-        --     [ Http.stringPart "type" "base64"
-        --     , Http.stringPart "title" "some title"
-        --     , Http.stringPart "description" "some description"
-        --     , Http.stringPart "image" dataUrl
-        --     ]
+
+
+{--
+-- TODO example image
+
+{
+    "id": "kZbTHiA",
+    "deletehash": "VNqYAk7BQvBJ3wU",
+    "account_id": null,
+    "account_url": null,
+    "ad_type": null,
+    "ad_url": null,
+    "title": "simple image",
+    "description": "simple description",
+    "name": "",
+    "type": "image/png",
+    "width": 200,
+    "height": 200,
+    "size": 4040,
+    "views": 0,
+    "section": null,
+    "vote": null,
+    "bandwidth": 0,
+    "animated": false,
+    "favorite": false,
+    "in_gallery": false,
+    "in_most_viral": false,
+    "has_sound": false,
+    "is_ad": false,
+    "nsfw": null,
+    "link": "https://i.imgur.com/kZbTHiA.png",
+    "tags": [],
+    "datetime": 1735225135,
+    "mp4": "",
+    "hls": ""
+
+}
+
+
+{
+  "id": "zebTRlF",
+  "deletehash": "IfpCBzk9ek51Rh1",
+  "account_id": null,
+  "account_url": null,
+  "ad_type": null,
+  "ad_url": null,
+  "title": "simple image number one",
+  "description": "simple description number two",
+  "name": "",
+  "type": "image/png",
+  "width": 1024,
+  "height": 1024,
+  "size": 118452,
+  "views": 0,
+  "section": null,
+  "vote": null,
+  "bandwidth": 0,
+  "animated": false,
+  "favorite": false,
+  "in_gallery": false,
+  "in_most_viral": false,
+  "has_sound": false,
+  "is_ad": false,
+  "nsfw": null,
+  "link": "https://i.imgur.com/zebTRlF.png",
+  "tags": [],
+  "datetime": 1735338374,
+  "mp4": "",
+  "hls": ""
+}
+
+https://i.imgur.com/NdwP8Oj.jpeg
+Ich hab mir den delete hash durch die lappen gehen lassen :<
+
+
+--}
+
+
+imgurImageDecoder : D.Decoder ImgurImage
+imgurImageDecoder =
+    D.field "data"
+        (D.map3 ImgurImage
+            (D.field "id" <| D.string)
+            (D.field "link" <| D.string)
+            (D.field "deletehash" <| D.string)
+        )
+
+
+imageDeleteCmd : DeleteHash -> Cmd FrontendMsg
+imageDeleteCmd hash =
+    Http.request
+        { method = "DELETE"
+        , headers =
+            [ Http.header "Authorization" "Client-ID d39e7a51841a2f1"
+            ]
+        , url = "https://api.imgur.com/3/image/" ++ hash
+        , expect = Http.expectWhatever ImageDeleted
+        , timeout = Nothing
+        , tracker = Nothing
+        , body = Http.emptyBody
         }
 
 
@@ -316,6 +466,9 @@ updateFromBackend msg model =
 
         UserUpdated user ->
             ( { model | user = Just user }, Cmd.none )
+
+        DeleteHashUpdated deleteHashes ->
+            ( { model | deleteHashes = deleteHashes }, Cmd.none )
 
 
 
@@ -426,14 +579,14 @@ viewRoute route model =
                 PlaygroundRoute guid ->
                     let
                         playground =
-                            model.playgrounds |> IdSet.toList |> List.filter (\p -> p.id == guid) |> List.head
+                            model.playgrounds |> IdSet.get guid
                     in
                     case playground of
                         Just p ->
                             viewPlaygroundRoute model p
 
                         Nothing ->
-                            Html.text <| "the playground " ++ guid ++ " does not exist"
+                            Html.text <| "the playground for " ++ guid ++ " does not exist"
 
                 NewAwardRoute guid ->
                     let
@@ -460,7 +613,7 @@ viewRoute route model =
                             viewPlaygroundAdminRoute model p
 
                         Nothing ->
-                            Html.text <| "the playground " ++ guid ++ " does not exist"
+                            Html.text <| "the playground admin page for " ++ guid ++ " does not exist"
 
                 MyUserRoute ->
                     viewMyUser model.user
@@ -491,6 +644,10 @@ viewLogin maybeUser userId =
             ]
 
 
+absoluteBaseUrl =
+    "https://magdeburger-spielplatznadel-develop.lamdera.app/"
+
+
 viewMyUser maybeUser =
     defaultLayout <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
@@ -505,7 +662,7 @@ viewMyUser maybeUser =
                 Just user ->
                     let
                         url =
-                            "https://magdeburger-spielplatznadel-develop.lamdera.app/login/" ++ user.id
+                            absoluteBaseUrl ++ "login/" ++ user.id
 
                         userQRCode =
                             el [ width fill, height fill ] <|
@@ -599,7 +756,7 @@ viewImageModal i =
                     , style "overflow" "hidden"
                     , Element.Events.onClick <| NoOpFrontendMsg
                     ]
-                    { src = i.url, description = i.description }
+                    { src = i.url, description = "image of a playground" }
                 , closingTrigger
                 ]
 
@@ -638,6 +795,12 @@ viewMainRoute model =
 
                 Nothing ->
                     model.playgrounds |> IdSet.toList
+
+        location =
+            Maybe.map .location model.currentGeoLocation
+
+        seperator =
+            el [ height (px 64), width fill ] <| el [ Font.color secondary, centerX, centerY ] <| text "..."
     in
     defaultLayout <|
         el
@@ -653,14 +816,35 @@ viewMainRoute model =
                     [ viewTitle "Magdeburger Spielplatznadel"
                     , viewParapraph "Fangt jetzt an Stempel zu sammeln und schaut wie viel ihr bekommen könnt."
                     ]
-                , map
+                , mainMap
                     (Maybe.map .location model.currentGeoLocation)
-                    (List.map playgroundMarker playgrounds)
+                    (List.map
+                        (\p ->
+                            playgroundMarker
+                                (case model.focusedPlayground of
+                                    Nothing ->
+                                        True
+
+                                    Just focused ->
+                                        p == focused
+                                )
+                                p
+                        )
+                        playgrounds
+                    )
                     model.snapGeoLocation
                     model.mapCamera
                 , column
                     [ spacing 16, width fill ]
-                    (playgrounds |> List.map (playgroundItem (Maybe.map .location model.currentGeoLocation)))
+                    (case model.focusedPlayground of
+                        Nothing ->
+                            playgrounds |> List.map (playgroundItem location)
+
+                        Just playground ->
+                            playgroundItemExpanded location playground
+                                :: seperator
+                                :: (playgrounds |> List.filter (\p -> p /= playground) |> List.map (playgroundItem location))
+                    )
                 , column
                     [ spacing 16, width fill ]
                     [ link
@@ -804,6 +988,10 @@ viewNewAwardRoute model award =
 
 viewPlaygroundRoute : Model -> Playground -> Html.Html FrontendMsg
 viewPlaygroundRoute model playground =
+    let
+        absoluteUrl =
+            absoluteBaseUrl ++ (showRoute <| PlaygroundRoute playground.id)
+    in
     defaultLayout <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ el [ Font.color secondaryDark, centerX ] <| iconSized Icons.toys 64
@@ -814,6 +1002,7 @@ viewPlaygroundRoute model playground =
             , viewImageStrip playground.images
             , column [ spacing 16, width fill ] [ viewAwardList (model.user |> Maybe.map .awards |> Maybe.withDefault IdSet.empty) playground.awards ]
             , mapCollapsed playground
+            , shareButton { files = [], title = "Spielpatz " ++ playground.title, text = "Spielplatz in der Magdeburger Spielpatznadel\n\nTitel: " ++ playground.title ++ "\n-------\n" ++ playground.description ++ "\n\nLink: " ++ absoluteUrl, url = absoluteUrl }
             ]
 
 
@@ -877,7 +1066,7 @@ viewPlaygroundAdminRoute model playground =
                                     , width fill
                                     , inFront <| cuteLabel "Bild"
                                     , spacing 16
-                                    , inFront <| el [ moveUp 18, moveLeft 18 ] <| removeButton (UpdatePlayground { playground | images = removeInList images index })
+                                    , inFront <| el [ moveUp 18, moveLeft 18 ] <| removeButton (RemovePlaygroundImage playground index)
                                     ]
                                     [ el [ centerX ] <| imagePreview image_
                                     , cuteInput "URL" image_.url <| \v -> UpdatePlayground { playground | images = replaceInList images index { image_ | url = v } }
@@ -904,6 +1093,10 @@ viewPlaygroundAdminRoute model playground =
         --     }
         viewAwardItemAdmin : Award -> Element FrontendMsg
         viewAwardItemAdmin award =
+            let
+                awardImage =
+                    award.image
+            in
             column
                 [ Border.color secondary
                 , Border.width 2
@@ -919,7 +1112,7 @@ viewPlaygroundAdminRoute model playground =
                     , viewAward 8 8 False award
                     ]
                 , cuteInput "Titel" award.title <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | title = v } }
-                , cuteInput "Bild URL" award.image.url <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | image = { description = award.image.description, url = v } } }
+                , cuteInput "Bild URL" award.image.url <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | image = { awardImage | url = v } } }
                 ]
 
         addAwardButton =
@@ -947,9 +1140,10 @@ viewPlaygroundAdminRoute model playground =
             <|
                 leafletMap
                     { camera = { location = playground.location, zoom = 14 }
-                    , markers = [ playgroundMarker playground ]
+                    , markers = [ playgroundMarker True playground ]
                     , onClick = Just <| \v -> UpdatePlayground { playground | location = v }
                     , onMove = Nothing
+                    , onMarkerClick = Nothing
                     }
 
         viewMarkerAdmin : MarkerIcon -> Element FrontendMsg
@@ -1033,20 +1227,25 @@ initAward s1 =
     IdSet.assignId
         ( { title = ""
           , id = IdSet.nilId
-          , image =
-                { url = ""
-                , description = ""
-                }
+          , image = { url = "" }
           }
         , s1
         )
 
 
-playgroundMarker : Playground -> Marker
-playgroundMarker playground =
+playgroundMarker : Bool -> Playground -> Marker
+playgroundMarker active playground =
     { location = playground.location
     , icon = playground.markerIcon
+
+    -- , popupText = "<a href=\"" ++ (showRoute <| PlaygroundRoute playground.id) ++ "\" rel=\"noopener noreferrer\">" ++ playground.title ++ "</a>"
     , popupText = playground.title
+    , opacity =
+        if active then
+            1.0
+
+        else
+            0.35
     }
 
 
@@ -1070,6 +1269,7 @@ viewImageStrip images =
                 List.map imagePreview images
 
 
+shareButton : ShareData -> Element FrontendMsg
 shareButton shareData =
     cuteButton (Share shareData) <| row [ spacing 8 ] [ icon Icons.share, text "Teilen" ]
 
@@ -1237,8 +1437,8 @@ mapPlaceholder =
             text "map"
 
 
-map : Maybe Location -> List Marker -> Bool -> Camera -> Element FrontendMsg
-map location marker snap mapCamera =
+mainMap : Maybe Location -> List Marker -> Bool -> Camera -> Element FrontendMsg
+mainMap location marker snap mapCamera =
     let
         lockButton =
             el [ alignBottom, alignRight, padding 8 ] <|
@@ -1267,7 +1467,7 @@ map location marker snap mapCamera =
 
         selfMarker : Location -> Marker
         selfMarker loc =
-            { location = loc, icon = selfMarkerIcon, popupText = "" }
+            { location = loc, icon = selfMarkerIcon, popupText = "", opacity = 1.0 }
 
         markersAndSelf =
             marker |> maybeConcat (location |> Maybe.map selfMarker)
@@ -1284,8 +1484,9 @@ map location marker snap mapCamera =
         leafletMap
             { camera = camera
             , markers = markersAndSelf
-            , onClick = Nothing
+            , onClick = Just <| \_ -> UnfocusPlayground
             , onMove = Just <| CameraMoved
+            , onMarkerClick = Just <| MarkerClicked
             }
 
 
@@ -1298,7 +1499,7 @@ mapCollapsed playground =
         , style "overflow" "hidden"
         ]
     <|
-        leafletMap { camera = { location = playground.location, zoom = 14 }, markers = [ playgroundMarker playground ], onClick = Nothing, onMove = Nothing }
+        leafletMap { camera = { location = playground.location, zoom = 14 }, markers = [ playgroundMarker True playground ], onClick = Nothing, onMove = Nothing, onMarkerClick = Nothing }
 
 
 leafletMap : LeafletMapConfig -> Element FrontendMsg
@@ -1312,6 +1513,7 @@ leafletMap config =
                  ]
                     |> maybeConcat (config.onClick |> Maybe.map (\msg -> Html.Events.on "click_elm" (D.map msg (decodeDetail decodeLocation))))
                     |> maybeConcat (config.onMove |> Maybe.map (\msg -> Html.Events.on "moveend_elm" (D.map msg (decodeDetail decodeCamera))))
+                    |> maybeConcat (config.onMarkerClick |> Maybe.map (\msg -> Html.Events.on "click_marker_elm" (D.map msg (decodeDetail decodeMarker))))
                 )
                 []
 
@@ -1358,19 +1560,6 @@ playgroundItemPlaceholder km =
 
 playgroundItem : Maybe Location -> Playground -> Element msg
 playgroundItem location playground =
-    let
-        viewDistance loc =
-            let
-                km =
-                    locationDistanceInKilometers loc playground.location
-
-                kmString =
-                    toFloat (round (km * 100)) / 100 |> String.fromFloat
-            in
-            el [ alignRight, itim, Font.size 24 ] <|
-                text <|
-                    (kmString ++ "km")
-    in
     link
         [ Border.rounded 16
         , Background.color secondary
@@ -1383,10 +1572,50 @@ playgroundItem location playground =
             row [ centerY, width fill, Font.color secondaryDark, spacing 8 ]
                 [ icon Icons.toys
                 , textTruncated playground.title
-                , location |> Maybe.map viewDistance |> Maybe.withDefault none
+                , location |> Maybe.map (viewDistance playground.location) |> Maybe.withDefault none
                 ]
-        , url = "/playground/" ++ playground.id
+        , url = showRoute <| PlaygroundRoute playground.id
         }
+
+
+playgroundItemExpanded : Maybe Location -> Playground -> Element msg
+playgroundItemExpanded location playground =
+    link
+        [ Border.rounded 16
+        , Background.color secondary
+        , width fill
+        , paddingXY 24 20
+        ]
+    <|
+        { label =
+            column [ Font.color secondaryDark, spacing 16 ]
+                [ row [ centerY, width fill, spacing 8 ]
+                    [ icon Icons.toys
+                    , textTruncated playground.title
+                    , location |> Maybe.map (viewDistance playground.location) |> Maybe.withDefault none
+                    ]
+                , paragraph [ width fill ] [ text playground.description ]
+                , if List.isEmpty playground.awards then
+                    none
+
+                  else
+                    row [ spacing 8 ] (playground.awards |> List.map (\_ -> emptyEl [ rounded 99, Background.color secondaryDark, width (px 16), height (px 16) ]))
+                ]
+        , url = showRoute <| PlaygroundRoute playground.id
+        }
+
+
+viewDistance from to =
+    let
+        km =
+            locationDistanceInKilometers from to
+
+        kmString =
+            toFloat (round (km * 100)) / 100 |> String.fromFloat
+    in
+    el [ alignRight, itim, Font.size 24 ] <|
+        text <|
+            (kmString ++ "km")
 
 
 playgroundAdminItem : Playground -> Element msg
@@ -1682,6 +1911,7 @@ encodeMarker marker =
         [ ( "location", encodeLocation marker.location )
         , ( "icon", encodeMarkerIcon marker.icon )
         , ( "popupText", E.string marker.popupText )
+        , ( "opacity", E.float marker.opacity )
         ]
 
 
@@ -1725,6 +1955,22 @@ decodeGeoLocation =
     D.map2 GeoLocation
         (D.field "location" decodeLocation)
         (D.maybe <| D.field "heading" D.float)
+
+
+decodeMarker : D.Decoder Marker
+decodeMarker =
+    D.map4 Marker
+        (D.field "location" decodeLocation)
+        (D.field "icon" decodeMarkerIcon)
+        (D.field "popupText" D.string)
+        (D.field "opacity" D.float)
+
+
+decodeMarkerIcon : D.Decoder MarkerIcon
+decodeMarkerIcon =
+    D.map2 MarkerIcon
+        (D.field "url" D.string)
+        (D.field "shadowUrl" D.string)
 
 
 square =

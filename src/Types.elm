@@ -4,6 +4,7 @@ import Animator
 import Browser exposing (UrlRequest)
 import Browser.Navigation as Nav
 import Bytes exposing (Bytes)
+import Dict exposing (Dict)
 import File exposing (File)
 import Http
 import IdSet exposing (..)
@@ -29,6 +30,8 @@ type alias FrontendModel =
     , modal : Maybe Modal
     , seeds : UUID.Seeds
     , user : Maybe User
+    , deleteHashes : Dict Link DeleteHash
+    , focusedPlayground : Maybe Playground
     }
 
 
@@ -67,8 +70,7 @@ type alias Award =
 
 
 type alias Img =
-    { url : String
-    , description : String
+    { url : Link
 
     -- TODO size
     -- TODO blur hash
@@ -80,6 +82,7 @@ type alias LeafletMapConfig =
     , markers : List Marker
     , onClick : Maybe (Location -> FrontendMsg)
     , onMove : Maybe (Camera -> FrontendMsg)
+    , onMarkerClick : Maybe (Marker -> FrontendMsg)
     }
 
 
@@ -99,6 +102,7 @@ type alias Marker =
     { location : Location
     , icon : MarkerIcon
     , popupText : String
+    , opacity : Float
     }
 
 
@@ -124,6 +128,7 @@ type alias BackendModel =
     { playgrounds : IdSet Playground
     , connections : IdSet Connection
     , users : IdSet User
+    , deleteHashes : Dict Link DeleteHash
     }
 
 
@@ -157,6 +162,7 @@ type FrontendMsg
     | CloseModalAnd FrontendMsg
     | NoOpFrontendMsg
     | UpdatePlayground Playground
+    | RemovePlaygroundImage Playground Int
     | AddAward Playground
     | AddPlayground
     | RemovePlaygroundLocal Playground
@@ -167,11 +173,29 @@ type FrontendMsg
     | Share ShareData
     | ImageRequested ImageTarget
     | ImageSelected ImageTarget File
-    | ImageLoaded ImageTarget String
-    | ImageUploaded (Result Http.Error String)
+    | ImageUploaded ImageTarget (Result Http.Error ImgurImage)
+    | ImageDeleted (Result Http.Error ())
     | Tick Time.Posix
     | SnapToLocation
     | CameraMoved Camera
+    | MarkerClicked Marker
+    | UnfocusPlayground
+
+
+type alias Link =
+    String
+
+
+type alias ImgurId =
+    String
+
+
+type alias DeleteHash =
+    String
+
+
+type alias ImgurImage =
+    { id : ImgurId, link : Link, deleteHash : DeleteHash }
 
 
 type alias ShareData =
@@ -213,6 +237,7 @@ type ToBackend
     | Collect Guid
     | SetConnectedUser UserId
     | UploadImage Bytes
+    | AddDeleteHash Link DeleteHash
 
 
 type BackendMsg
@@ -231,3 +256,4 @@ type ToFrontend
     | PlaygroundRemoved Playground -- TODO can this be added to playground uploaded?
     | PlaygroundsFetched (List Playground)
     | UserUpdated User
+    | DeleteHashUpdated (Dict Link DeleteHash)

@@ -7,7 +7,7 @@ exports.init = async function (app) {
           .then(() => console.log("Successful share"))
           .catch((error) => console.log("Error sharing", error));
       } else {
-        console.log("Share not supported on this browser, do it the old way.");
+        console.log("Share: Not supported on this browser", data, files);
       }
     });
   });

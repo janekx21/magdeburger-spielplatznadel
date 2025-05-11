@@ -1,6 +1,7 @@
 module Backend exposing (..)
 
 import Common exposing (..)
+import Dict
 import Http
 import IdSet
 import Json.Decode as D
@@ -30,9 +31,13 @@ app =
         }
 
 
-init : ( Model, Cmd BackendMsg )
+init : ( BackendModel, Cmd BackendMsg )
 init =
-    ( { playgrounds = IdSet.fromList seedsPlaygrounds, connections = IdSet.empty, users = IdSet.empty }
+    ( { playgrounds = IdSet.fromList seedsPlaygrounds
+      , connections = IdSet.empty
+      , users = IdSet.empty
+      , deleteHashes = Dict.empty |> Dict.insert "https://i.imgur.com/kZbTHiA.png" "VNqYAk7BQvBJ3wU"
+      }
     , Cmd.none
     )
 
@@ -49,15 +54,13 @@ seedsPlaygrounds =
             [ { title = "Dino"
               , id = "4a98c645-4784-4a6f-b27d-6620d6c1c1eb"
               , image =
-                    { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
-                    , description = "Blauer Dino"
+                    { url = "https://i.imgur.com/kZbTHiA.png"
                     }
               }
             , { title = "Dino 2"
               , id = "21f2cd1e-a7f8-46be-8129-358e9c4d3c49"
               , image =
                     { url = "https://stylegreen-shop.cstatic.io/media/image/03/e2/87/styleGREEN_Tierpiktogramm_Dino_Nino_Moostier.png"
-                    , description = "Grüner Dino"
                     }
               }
             ]
@@ -69,16 +72,12 @@ seedsPlaygrounds =
       , markerIcon = defaultMarkerIcon
       , images =
             [ { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
-              , description = "Mittelstelle"
               }
             , { url = "https://bilder.spielplatztreff.de/spielplatzbild/spielplatz-schellheimerplatz-in-magdeburg_1410435124572.jpg"
-              , description = "Mittelstelle"
               }
             , { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
-              , description = "Mittelstelle"
               }
             , { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
-              , description = "Mittelstelle"
               }
             ]
       , awards = []
@@ -90,10 +89,8 @@ seedsPlaygrounds =
       , markerIcon = defaultMarkerIcon
       , images =
             [ { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
-              , description = "Mitteltelle"
               }
             , { url = "https://bilder.spielplatztreff.de/spielplatzbild/spielplatz-schellheimerplatz-in-magdeburg_1410435124572.jpg"
-              , description = "Mittelstelle"
               }
             ]
       , awards =
@@ -101,7 +98,6 @@ seedsPlaygrounds =
               , id = "93ff3df5-970c-4a7b-8064-57904e4c3003"
               , image =
                     { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
-                    , description = "Dino Stempel"
                     }
               }
             ]
@@ -131,10 +127,13 @@ update msg model =
             --             }
             -- in
             ( { model | connections = model.connections |> IdSet.insert (initConnection clientId) }
-            , Lamdera.sendToFrontend clientId <|
-                PlaygroundsFetched <|
-                    IdSet.toList <|
-                        model.playgrounds
+            , Cmd.batch
+                [ Lamdera.sendToFrontend clientId <|
+                    PlaygroundsFetched <|
+                        IdSet.toList <|
+                            model.playgrounds
+                , Lamdera.sendToFrontend clientId (DeleteHashUpdated model.deleteHashes)
+                ]
             )
 
         ClientDisconnected clientId ->
@@ -215,6 +214,13 @@ updateFromFrontend sessionId clientId msg model =
 
         UploadImage file ->
             ( model, Cmd.none )
+
+        AddDeleteHash link hash ->
+            let
+                hashes =
+                    model.deleteHashes |> Dict.insert link hash
+            in
+            ( { model | deleteHashes = hashes }, Lamdera.broadcast (DeleteHashUpdated hashes) )
 
 
 
