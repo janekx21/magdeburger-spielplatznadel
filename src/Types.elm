@@ -256,4 +256,5 @@ type ToFrontend
     | PlaygroundRemoved Playground -- TODO can this be added to playground uploaded?
     | PlaygroundsFetched (List Playground)
     | UserUpdated User
+    | UserLoggedIn
     | DeleteHashUpdated (Dict Link DeleteHash)

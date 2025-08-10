@@ -130,6 +130,7 @@ class LeafletMap extends HTMLElement {
 
       if (oldData == null || JSON.stringify(newData.camera) != JSON.stringify(oldData.camera)) {
         // Move the map camera to new location and zoom based on interop data
+        this.data.camera = newData.camera;
         const { lat, lng } = this.map.getCenter();
         const zoom = this.map.getZoom();
         if (

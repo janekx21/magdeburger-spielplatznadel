@@ -1,50 +1,30 @@
 {
-  description = "Description for the project";
-
   inputs = {
-    devenv-root = {
-      url = "file+file:///dev/null";
-      flake = false;
-    };
-    nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
-    devenv.url = "github:cachix/devenv";
-    nix2container.url = "github:nlewo/nix2container";
-    nix2container.inputs.nixpkgs.follows = "nixpkgs";
-    mk-shell-bin.url = "github:rrbutani/nix-mk-shell-bin";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
   };
-
-  nixConfig = {
-    extra-trusted-public-keys = "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=";
-    extra-substituters = "https://devenv.cachix.org";
-  };
-
-  outputs = inputs@{ flake-parts, devenv-root, ... }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
-      imports = [
-        inputs.devenv.flakeModule
-      ];
-      systems = [ "x86_64-linux" "i686-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin" ];
-
-      perSystem = { config, self', inputs', pkgs, system, ... }: {
-        packages.${system}.default = pkgs.runCommand "" {} '''';
-        devenv.shells.default = {
-          languages.elm.enable = true;
-
-          packages = [
-            pkgs.elmPackages.lamdera
-          ];
-
-          processes = {
-            lamdera.exec = "lamdera live";
+  outputs = { self, nixpkgs, flake-utils }:
+    flake-utils.lib.eachDefaultSystem
+      (system:
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
           };
-        };
+        in
+        with pkgs;
+        {
+          devShells.default = mkShell {
+            buildInputs = [
+              elmPackages.elm
+              elmPackages.elm-format
+              # elmPackages.elm-review
+              elmPackages.lamdera
 
-      };
-      flake = {
-        # The usual flake attributes can be defined here, including system-
-        # agnostic ones like nixosModule and system-enumerating ones, although
-        # those are more easily expressed in perSystem.
-
-      };
-    };
+              elmPackages.elm-language-server
+            ];
+          };
+        }
+      );
 }
+

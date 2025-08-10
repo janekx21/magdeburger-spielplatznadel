@@ -20,7 +20,6 @@ import Html.Events
 import Html.Keyed
 import Http
 import IdSet
-import Image
 import Json.Decode as D
 import Json.Encode as E
 import Lamdera
@@ -28,7 +27,6 @@ import Material.Icons as Icons
 import Material.Icons.Types exposing (Icon)
 import QRCode
 import Random
-import Task
 import Types exposing (..)
 import UUID exposing (Seeds)
 import Url
@@ -83,11 +81,13 @@ init url key =
       , playgrounds = IdSet.empty
       , user = Nothing
       , snapGeoLocation = False
-      , mapCamera = { location = magdeburg, zoom = 14 }
+      , mapCamera = { location = magdeburg, zoom = 12 }
       , deleteHashes = Dict.empty
       , focusedPlayground = Nothing
       }
+        |> updateMiddleware route
     , Random.generate SetSeed (Random.map4 UUID.Seeds seed seed seed seed)
+      -- collect stuff after loggin in
     )
 
 
@@ -129,27 +129,8 @@ update msg model =
 
                                 _ ->
                                     Cmd.none
-
-                        -- Use this to inject some additional state
-                        -- that is url dependent
-                        updateMiddleware : Model -> Model
-                        updateMiddleware m =
-                            case route of
-                                PlaygroundRoute guid ->
-                                    { m | focusedPlayground = model.playgrounds |> IdSet.get guid }
-
-                                MainRoute ->
-                                    case m.focusedPlayground of
-                                        Nothing ->
-                                            m
-
-                                        Just p ->
-                                            { m | mapCamera = { location = p.location, zoom = 8 } }
-
-                                _ ->
-                                    m
                     in
-                    ( newRoute url model |> updateMiddleware
+                    ( newRoute url model |> updateMiddleware route
                     , collectCmd
                     )
 
@@ -246,7 +227,13 @@ update msg model =
                         Nothing ->
                             IdSet.generateId model.seeds
             in
-            ( { model | user = Just { id = userId, awards = IdSet.empty }, seeds = seeds }, Cmd.batch [ saveStorage userId, Lamdera.sendToBackend <| SetConnectedUser userId ] )
+            ( { model | user = Just { id = userId, awards = IdSet.empty }, seeds = seeds }
+            , Cmd.batch
+                [ saveStorage userId
+                , Lamdera.sendToBackend <|
+                    SetConnectedUser userId
+                ]
+            )
 
         LoginWithId userId ->
             ( { model | user = Just { id = userId, awards = IdSet.empty } }
@@ -303,10 +290,33 @@ update msg model =
             ( { model | mapCamera = camera, snapGeoLocation = Just camera.location == (model.currentGeoLocation |> Maybe.map .location) }, Cmd.none )
 
         MarkerClicked marker ->
-            ( { model | focusedPlayground = model.playgrounds |> IdSet.toList |> List.filter (\p -> p.location == marker.location) |> List.head }, Cmd.none )
+            ( { model | focusedPlayground = model.playgrounds |> IdSet.toList |> List.filter (\p -> p.location == marker.location) |> List.head, mapCamera = { location = marker.location, zoom = 14 }, snapGeoLocation = False }, Cmd.none )
 
         UnfocusPlayground ->
             ( { model | focusedPlayground = Nothing }, Cmd.none )
+
+
+
+-- Use this to inject some additional state
+-- that is url dependent into the model on a route change
+
+
+updateMiddleware : Route -> Model -> Model
+updateMiddleware route m =
+    case route of
+        PlaygroundRoute guid ->
+            { m | focusedPlayground = m.playgrounds |> IdSet.get guid }
+
+        MainRoute ->
+            case m.focusedPlayground of
+                Nothing ->
+                    m
+
+                Just p ->
+                    { m | mapCamera = { location = p.location, zoom = 14 } }
+
+        _ ->
+            m
 
 
 updatePlayground model playground =
@@ -318,7 +328,9 @@ newRoute url model =
     { model
         | route =
             model.route
-                |> Animator.go (Animator.millis 500) (parseUrl url)
+                |> Animator.go (Animator.millis 150) (parseUrl url)
+
+        -- |> Animator.go (Animator.millis 5000) (parseUrl url)
     }
 
 
@@ -486,6 +498,18 @@ updateFromBackend msg model =
         UserUpdated user ->
             ( { model | user = Just user }, Cmd.none )
 
+        UserLoggedIn ->
+            let
+                collectCmd =
+                    case model.route |> Animator.current of
+                        NewAwardRoute guid ->
+                            Lamdera.sendToBackend <| Collect guid
+
+                        _ ->
+                            Cmd.none
+            in
+            ( model, collectCmd )
+
         DeleteHashUpdated deleteHashes ->
             ( { model | deleteHashes = deleteHashes }, Cmd.none )
 
@@ -520,17 +544,17 @@ view model =
                                 Animator.Css.xy { x = 0, y = 0 }
 
                             else
-                                Animator.Css.xy { x = 460 * 2, y = 0 }
+                                Animator.Css.xy { x = 50, y = 0 }
                     , Animator.Css.opacity <|
                         \state ->
-                            (if Animator.upcoming state model.route then
+                            if Animator.upcoming state model.route then
                                 Animator.at 1
 
-                             else
+                            else
                                 Animator.at 0
-                            )
-                                |> Animator.leaveSmoothly 0
-                                |> Animator.arriveSmoothly 1
+
+                    -- |> Animator.leaveSmoothly 0
+                    -- |> Animator.arriveSmoothly 1
                     ]
                     [ Html.Attributes.style "inset" "0"
                     , Html.Attributes.style "position" "absolute"

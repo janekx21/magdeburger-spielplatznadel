@@ -170,6 +170,7 @@ updateFromFrontend sessionId clientId msg model =
         RemovePlayground playground ->
             ( { model | playgrounds = model.playgrounds |> IdSet.remove playground.id }, broadcastTo others <| PlaygroundRemoved playground )
 
+        -- This gets called before SetConnectedUser
         Collect itemId ->
             let
                 maybeAward =
@@ -210,7 +211,7 @@ updateFromFrontend sessionId clientId msg model =
                 connected =
                     model.connections |> IdSet.insert { id = clientId, userId = Just user.id }
             in
-            ( { model | users = users, connections = connected }, Lamdera.sendToFrontend clientId <| UserUpdated user )
+            ( { model | users = users, connections = connected }, Cmd.batch [ Lamdera.sendToFrontend clientId <| UserUpdated user, Lamdera.sendToFrontend clientId UserLoggedIn ] )
 
         UploadImage file ->
             ( model, Cmd.none )
