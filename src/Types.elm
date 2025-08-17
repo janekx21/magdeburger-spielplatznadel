@@ -66,6 +66,14 @@ type alias Award =
     { id : Guid
     , title : String
     , image : Img
+    , transform : Transform
+    }
+
+
+type alias Transform =
+    { x : Float
+    , y : Float
+    , rotation : Float
     }
 
 
@@ -145,7 +153,14 @@ type alias UserId =
 type alias User =
     { id : UserId
     , awards : IdSet Award
+    , role : Role
     }
+
+
+type Role
+    = RegularUser
+    | Moderator
+    | Admin
 
 
 

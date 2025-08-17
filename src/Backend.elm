@@ -2,9 +2,8 @@ module Backend exposing (..)
 
 import Common exposing (..)
 import Dict
-import Http
+import Env
 import IdSet
-import Json.Decode as D
 import Lamdera exposing (ClientId, SessionId)
 import Types exposing (..)
 
@@ -13,10 +12,12 @@ type alias Model =
     BackendModel
 
 
-
---noinspection ElmUnusedSymbol,ElmReview
-
-
+app :
+    { init : ( BackendModel, Cmd BackendMsg )
+    , update : BackendMsg -> BackendModel -> ( BackendModel, Cmd BackendMsg )
+    , updateFromFrontend : SessionId -> ClientId -> ToBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )
+    , subscriptions : BackendModel -> Sub BackendMsg
+    }
 app =
     Lamdera.backend
         { init = init
@@ -33,10 +34,22 @@ app =
 
 init : ( BackendModel, Cmd BackendMsg )
 init =
-    ( { playgrounds = IdSet.fromList seedsPlaygrounds
+    ( { playgrounds =
+            case Env.mode of
+                Env.Development ->
+                    IdSet.fromList seedsPlaygrounds
+
+                Env.Production ->
+                    IdSet.empty
       , connections = IdSet.empty
       , users = IdSet.empty
-      , deleteHashes = Dict.empty |> Dict.insert "https://i.imgur.com/kZbTHiA.png" "VNqYAk7BQvBJ3wU"
+      , deleteHashes =
+            case Env.mode of
+                Env.Development ->
+                    Dict.empty |> Dict.insert "https://i.imgur.com/kZbTHiA.png" "VNqYAk7BQvBJ3wU"
+
+                Env.Production ->
+                    Dict.empty
       }
     , Cmd.none
     )
@@ -56,12 +69,14 @@ seedsPlaygrounds =
               , image =
                     { url = "https://i.imgur.com/kZbTHiA.png"
                     }
+              , transform = Transform 20 20 0.1
               }
             , { title = "Dino 2"
               , id = "21f2cd1e-a7f8-46be-8129-358e9c4d3c49"
               , image =
-                    { url = "https://stylegreen-shop.cstatic.io/media/image/03/e2/87/styleGREEN_Tierpiktogramm_Dino_Nino_Moostier.png"
+                    { url = "https://i.imgur.com/4fXlwFa.jpeg"
                     }
+              , transform = Transform -20 -20 -0.1
               }
             ]
       }
@@ -99,10 +114,32 @@ seedsPlaygrounds =
               , image =
                     { url = "https://www.trends.de/media/image/f3/6d/05/0258307-001.jpg"
                     }
+              , transform = Transform 0 0 0
               }
             ]
       }
     ]
+        ++ (List.range 0 20
+                |> List.map
+                    (\i ->
+                        let
+                            ii =
+                                String.fromInt i
+                        in
+                        { title = "Placeholder " ++ ii
+                        , description = "Lorem Ipsum"
+                        , location = { lat = 52.1 + toFloat i * 0.01, lng = 11.8 }
+                        , id = "250413dd-ee7c-4889-a1d7-5d4fc9d5c558" ++ ii
+                        , markerIcon = defaultMarkerIcon
+                        , images =
+                            [ { url = "https://www.magdeburg.de/media/custom/37_45203_1_r.JPG?1602064546"
+                              }
+                            ]
+                        , awards =
+                            []
+                        }
+                    )
+           )
 
 
 update : BackendMsg -> Model -> ( Model, Cmd BackendMsg )
@@ -155,10 +192,21 @@ initConnection clientId =
 
 
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> Model -> ( Model, Cmd BackendMsg )
-updateFromFrontend sessionId clientId msg model =
+updateFromFrontend _ clientId msg model =
     let
         others =
             model.connections |> IdSet.remove clientId |> IdSet.toList |> List.map .id
+
+        connectedUser =
+            model.connections |> IdSet.get clientId |> Maybe.andThen (\c -> c.userId) |> Maybe.andThen (\userId -> model.users |> IdSet.get userId)
+
+        ifCanRole : Role -> ( Model, Cmd a ) -> ( Model, Cmd a )
+        ifCanRole role modelCmd =
+            if connectedUser |> Maybe.map (userCanRole role) |> Maybe.withDefault False then
+                modelCmd
+
+            else
+                ( model, Cmd.none )
     in
     case msg of
         NoOpToBackend ->
@@ -166,9 +214,11 @@ updateFromFrontend sessionId clientId msg model =
 
         UploadPlayground playground ->
             ( { model | playgrounds = model.playgrounds |> IdSet.insert playground }, broadcastTo others <| PlaygroundUploaded playground )
+                |> ifCanRole Moderator
 
         RemovePlayground playground ->
             ( { model | playgrounds = model.playgrounds |> IdSet.remove playground.id }, broadcastTo others <| PlaygroundRemoved playground )
+                |> ifCanRole Moderator
 
         -- This gets called before SetConnectedUser
         Collect itemId ->
@@ -205,15 +255,28 @@ updateFromFrontend sessionId clientId msg model =
 
         SetConnectedUser guid ->
             let
+                isFirstUser =
+                    IdSet.isEmpty model.users
+
                 ( users, user ) =
-                    model.users |> IdSet.getOrInsert guid (initUser guid)
+                    model.users
+                        |> IdSet.getOrInsert guid
+                            (initEmptyUser guid
+                                |> (\u ->
+                                        if isFirstUser then
+                                            { u | role = Admin }
+
+                                        else
+                                            u
+                                   )
+                            )
 
                 connected =
                     model.connections |> IdSet.insert { id = clientId, userId = Just user.id }
             in
             ( { model | users = users, connections = connected }, Cmd.batch [ Lamdera.sendToFrontend clientId <| UserUpdated user, Lamdera.sendToFrontend clientId UserLoggedIn ] )
 
-        UploadImage file ->
+        UploadImage _ ->
             ( model, Cmd.none )
 
         AddDeleteHash link hash ->
@@ -228,11 +291,7 @@ updateFromFrontend sessionId clientId msg model =
 -- imageUploadCmd file
 
 
-initUser : Guid -> User
-initUser id =
-    { id = id, awards = IdSet.empty }
-
-
+broadcastTo : List ClientId -> ToFrontend -> Cmd msg
 broadcastTo clientIds msg =
     clientIds |> List.map (\id -> Lamdera.sendToFrontend id msg) |> Cmd.batch
 

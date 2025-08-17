@@ -41,10 +41,7 @@ type alias Model =
     FrontendModel
 
 
-
---noinspection ElmUnusedSymbol
-
-
+app : { init : Lamdera.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg ), view : FrontendModel -> Browser.Document FrontendMsg, update : FrontendMsg -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg ), updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg ), subscriptions : FrontendModel -> Sub FrontendMsg, onUrlRequest : UrlRequest -> FrontendMsg, onUrlChange : Url.Url -> FrontendMsg }
 app =
     Lamdera.frontend
         { init = init
@@ -105,7 +102,6 @@ update msg model =
             case urlRequest of
                 Internal url ->
                     ( newRoute url model
-                      -- ( model
                     , Nav.pushUrl model.key (Url.toString url)
                     )
 
@@ -125,7 +121,9 @@ update msg model =
                         collectCmd =
                             case route of
                                 NewAwardRoute guid ->
-                                    Lamdera.sendToBackend <| Collect guid
+                                    Cmd.batch
+                                        [ Lamdera.sendToBackend <| Collect guid
+                                        ]
 
                                 _ ->
                                     Cmd.none
@@ -227,7 +225,7 @@ update msg model =
                         Nothing ->
                             IdSet.generateId model.seeds
             in
-            ( { model | user = Just { id = userId, awards = IdSet.empty }, seeds = seeds }
+            ( model
             , Cmd.batch
                 [ saveStorage userId
                 , Lamdera.sendToBackend <|
@@ -236,7 +234,7 @@ update msg model =
             )
 
         LoginWithId userId ->
-            ( { model | user = Just { id = userId, awards = IdSet.empty } }
+            ( model
             , Cmd.batch [ Nav.replaceUrl model.key "/", Lamdera.sendToBackend <| SetConnectedUser userId, saveStorage userId ]
             )
 
@@ -902,45 +900,53 @@ viewMainRoute model =
                         , label =
                             text "Dein Account"
                         }
-                    , link
-                        [ padding 16
-                        , Background.color secondaryDark
-                        , Border.rounded 16
-                        , Font.color white
-                        , width fill
-                        , Font.center
-                        ]
-                        { url = "/admin"
-                        , label =
-                            text "Admin Seite"
-                        }
-                    ]
-                , column
-                    [ spacing 16, width fill ]
-                    [ el [ Font.bold ] <| text "debuggin menu"
-                    , column [ spacing 8, width fill ]
-                        (allAwards model.playgrounds
-                            |> List.map
-                                (\{ id, title } ->
-                                    link [ width fill ]
-                                        { url = "/new-award/" ++ id
-                                        , label =
-                                            el
-                                                [ padding 16
-                                                , Background.color secondaryDark
-                                                , Border.rounded 16
-                                                , Font.color white
-                                                , width fill
-                                                ]
-                                            <|
-                                                text <|
-                                                    "Stempel "
-                                                        ++ title
-                                                        ++ " eintragen"
-                                        }
-                                )
+                    , ifUserCanRole model.user
+                        Moderator
+                        (link
+                            [ padding 16
+                            , Background.color secondaryDark
+                            , Border.rounded 16
+                            , Font.color white
+                            , width fill
+                            , Font.center
+                            ]
+                            { url = "/admin"
+                            , label =
+                                text "Admin Seite"
+                            }
                         )
+                        none
                     ]
+                , ifUserCanRole model.user
+                    Admin
+                    (column
+                        [ spacing 16, width fill ]
+                        [ el [ Font.bold ] <| text "debuggin menu"
+                        , column [ spacing 8, width fill ]
+                            (allAwards model.playgrounds
+                                |> List.map
+                                    (\{ id, title } ->
+                                        link [ width fill ]
+                                            { url = showRoute <| NewAwardRoute id
+                                            , label =
+                                                el
+                                                    [ padding 16
+                                                    , Background.color secondaryDark
+                                                    , Border.rounded 16
+                                                    , Font.color white
+                                                    , width fill
+                                                    ]
+                                                <|
+                                                    text <|
+                                                        "Stempel "
+                                                            ++ title
+                                                            ++ " eintragen"
+                                            }
+                                    )
+                            )
+                        ]
+                    )
+                    none
                 ]
 
 
@@ -968,10 +974,6 @@ viewAwardsRoute model =
 
 viewAwardList : IdSet.IdSet Award -> List Award -> Element msg
 viewAwardList found awards =
-    let
-        ( offX, offY ) =
-            ( 12, 12 )
-    in
     if List.isEmpty awards then
         row [ Font.color secondaryDark, spacing 8 ] [ text "Hier gibt es keine Stempel", icon Icons.sentiment_dissatisfied ]
 
@@ -979,7 +981,7 @@ viewAwardList found awards =
         row
             [ width fill, style "flex-wrap" "wrap", style "gap" "32px", justifyCenter ]
         <|
-            List.map (\award -> viewAward offX offY (IdSet.member award found) award) awards
+            List.map (\award -> viewAward (IdSet.member award found) award) awards
 
 
 
@@ -1024,7 +1026,7 @@ viewNewAwardRoute model award =
                             }
                         ]
                 ]
-                [ el [ centerX, paddingXY 0 70, scale 1.7 ] <| viewAward 8 4 True award
+                [ el [ centerX, paddingXY 0 70, scale 1.7 ] <| viewAward True award
                 ]
             ]
 
@@ -1151,8 +1153,8 @@ viewPlaygroundAdminRoute model playground =
                 , inFront <| el [ moveUp 18, moveLeft 18 ] <| removeButton (UpdatePlayground { playground | awards = removeItemViaId award playground.awards })
                 ]
                 [ row [ width fill, spaceEvenly ]
-                    [ viewAward 8 8 True award
-                    , viewAward 8 8 False award
+                    [ viewAward True award
+                    , viewAward False award
                     ]
                 , cuteInput "Titel" award.title <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | title = v } }
                 , cuteInput "Bild URL" award.image.url <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | image = { awardImage | url = v } } }
@@ -1267,13 +1269,23 @@ removeButton msg =
 
 initAward : Seeds -> ( Award, Seeds )
 initAward s1 =
+    let
+        ( transform, _ ) =
+            Random.step generateTransform s1.seed1
+    in
     IdSet.assignId
         ( { title = ""
           , id = IdSet.nilId
           , image = { url = "" }
+          , transform = transform
           }
         , s1
         )
+
+
+generateTransform : Random.Generator Transform
+generateTransform =
+    Random.map3 Transform (Random.float -16 16) (Random.float -16 16) (Random.float -0.1 0.1)
 
 
 playgroundMarker : Bool -> Playground -> Marker
@@ -1737,8 +1749,8 @@ awardPlaceholder got offX offY new =
         none
 
 
-viewAward : Float -> Float -> Bool -> Award -> Element msg
-viewAward offX offY found award =
+viewAward : Bool -> Award -> Element msg
+viewAward found award =
     let
         new =
             False
@@ -1754,10 +1766,11 @@ viewAward offX offY found award =
                 , Border.width 8
                 , Border.rounded 999
                 , Background.color secondary
-                , moveRight offX
-                , moveDown offY
+                , moveRight award.transform.x
+                , moveDown award.transform.x
+                , rotate award.transform.rotation
                 , scale 1.1
-                , style "mask" "url(\"/assets/images/dust_mask.png\") center / cover luminance"
+                , style "mask" "url(\"/assets/images/dust_mask.png\") center center / cover no-repeat luminance"
                 , inFront <| displayIf new newBatch
                 ]
             <|
@@ -2092,6 +2105,14 @@ locationDistanceInKilometers loc1 loc2 =
             2 * atan2 (sqrt a) (sqrt (1 - a))
     in
     earthRadiusInKilometers * c
+
+
+ifUserCanRole maybeUser role good bad =
+    if maybeUser |> Maybe.map (userCanRole role) |> Maybe.withDefault False then
+        good
+
+    else
+        bad
 
 
 

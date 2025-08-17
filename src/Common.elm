@@ -2,7 +2,7 @@ module Common exposing (..)
 
 import Dict
 import IdSet exposing (IdSet)
-import Types exposing (Award, Guid, Playground)
+import Types exposing (Award, Guid, Playground, Role(..), User, UserId)
 
 
 allAwards : IdSet Playground -> List Award
@@ -71,3 +71,35 @@ getItemInList list index =
 
 defaultMarkerIcon =
     { url = "/assets/images/playground_icon_1.png", shadowUrl = "/assets/images/playground_icon_1_shadow.png" }
+
+
+initEmptyUser : UserId -> User
+initEmptyUser id =
+    { id = id, awards = IdSet.empty, role = RegularUser }
+
+
+userCanRole : Role -> User -> Bool
+userCanRole role user =
+    roleCan user.role role
+
+
+roleCan : Role -> Role -> Bool
+roleCan role check =
+    let
+        allRoles =
+            role :: roleInherits role
+    in
+    allRoles |> List.any (\r -> r == check)
+
+
+roleInherits : Role -> List Role
+roleInherits role =
+    case role of
+        RegularUser ->
+            []
+
+        Moderator ->
+            [ RegularUser ]
+
+        Admin ->
+            [ RegularUser, Moderator ]
