@@ -1032,7 +1032,7 @@ viewPlaygroundRoute : Model -> Playground -> Html.Html FrontendMsg
 viewPlaygroundRoute model playground =
     let
         absoluteUrl =
-            absoluteBaseUrl ++ (showRoute <| PlaygroundRoute playground.id)
+            Env.absoluteBaseUrl ++ (showRoute <| PlaygroundRoute playground.id)
     in
     defaultLayout <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
