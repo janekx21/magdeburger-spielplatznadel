@@ -12,7 +12,7 @@ import Element.Border as Border exposing (rounded)
 import Element.Events
 import Element.Font as Font
 import Element.Input as Input
-import Env exposing (absoluteBaseUrl)
+import Env
 import File
 import File.Select as Select
 import Html
@@ -700,7 +700,7 @@ viewMyUser maybeUser =
                 Just user ->
                     let
                         url =
-                            absoluteBaseUrl ++ "login/" ++ user.id
+                            Env.absoluteBaseUrl ++ "login/" ++ user.id
 
                         userQRCode =
                             el [ width fill, height fill ] <|
