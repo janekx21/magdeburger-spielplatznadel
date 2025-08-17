@@ -12,6 +12,7 @@ import Element.Border as Border exposing (rounded)
 import Element.Events
 import Element.Font as Font
 import Element.Input as Input
+import Env exposing (absoluteBaseUrl)
 import File
 import File.Select as Select
 import Html
@@ -683,10 +684,6 @@ viewLogin maybeUser userId =
                             ]
                         ]
             ]
-
-
-absoluteBaseUrl =
-    "https://magdeburger-spielplatznadel-develop.lamdera.app/"
 
 
 viewMyUser maybeUser =

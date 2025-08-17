@@ -12,3 +12,7 @@ module Env exposing (..)
 
 dummy =
     ""
+
+
+absoluteBaseUrl =
+    "https://magdeburger-spielplatznadel-develop.lamdera.app/"
