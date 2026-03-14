@@ -24,7 +24,7 @@ import IdSet
 import Json.Decode as D
 import Json.Encode as E
 import Lamdera
-import Material.Icons as Icons
+import Material.Icons.Round as Icons
 import Material.Icons.Types exposing (Icon)
 import QRCode
 import Random
@@ -1637,14 +1637,16 @@ playgroundItemExpanded location playground =
         , Background.color secondary
         , width fill
         , paddingXY 24 20
+        , Border.width 4
+        , Border.color secondaryDark
         ]
     <|
         { label =
-            column [ Font.color secondaryDark, spacing 16 ]
+            column [ Font.color secondaryDark, spacing 16, width fill ]
                 [ row [ centerY, width fill, spacing 8 ]
                     [ icon Icons.toys
                     , textTruncated playground.title
-                    , location |> Maybe.map (viewDistance playground.location) |> Maybe.withDefault none
+                    , location |> Maybe.map (viewDistanceAccented playground.location) |> Maybe.withDefault none
                     ]
                 , paragraph [ width fill ] [ text playground.description ]
                 , if List.isEmpty playground.awards then
@@ -1657,6 +1659,21 @@ playgroundItemExpanded location playground =
         }
 
 
+viewDistanceAccented from to =
+    let
+        km =
+            locationDistanceInKilometers from to
+
+        kmString =
+            toFloat (round (km * 100)) / 100 |> String.fromFloat
+    in
+    row [ alignRight, itim, Font.size 24, spacing 4, Background.color primaryLight, Border.rounded 16, padding 6, Font.color primaryDark ]
+        [ icon Icons.push_pin
+        , text <|
+            (kmString ++ "km")
+        ]
+
+
 viewDistance from to =
     let
         km =
@@ -1665,9 +1682,11 @@ viewDistance from to =
         kmString =
             toFloat (round (km * 100)) / 100 |> String.fromFloat
     in
-    el [ alignRight, itim, Font.size 24 ] <|
-        text <|
+    row [ alignRight, itim, Font.size 24, spacing 4, Border.rounded 16, padding 6 ]
+        [ icon Icons.push_pin
+        , text <|
             (kmString ++ "km")
+        ]
 
 
 playgroundAdminItem : Playground -> Element msg
@@ -2121,6 +2140,10 @@ ifUserCanRole maybeUser role good bad =
 --    rgb255 148 162 171
 -- green
 --    rgb255 151 214 115
+
+
+primaryLight =
+    rgb255 206 250 188
 
 
 primary =

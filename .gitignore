@@ -7,3 +7,4 @@
 **/.idea
 apps/backend/tmp
 lamdera
+.vscode
