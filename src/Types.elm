@@ -153,6 +153,7 @@ type alias UserId =
 type alias User =
     { id : UserId
     , awards : IdSet Award
+    , showWelcomeScreen : Bool
     , role : Role
     }
 
@@ -195,6 +196,7 @@ type FrontendMsg
     | CameraMoved Camera
     | MarkerClicked Marker
     | UnfocusPlayground
+    | CloseWelcomeScreen
 
 
 type alias Link =
@@ -251,6 +253,7 @@ type ToBackend
     | RemovePlayground Playground
     | Collect Guid
     | SetConnectedUser UserId
+    | UpdateUser User
     | UploadImage Bytes
     | AddDeleteHash Link DeleteHash
 

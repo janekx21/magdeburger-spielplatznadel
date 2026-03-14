@@ -75,7 +75,7 @@ defaultMarkerIcon =
 
 initEmptyUser : UserId -> User
 initEmptyUser id =
-    { id = id, awards = IdSet.empty, role = RegularUser }
+    { id = id, awards = IdSet.empty, role = RegularUser, showWelcomeScreen = True }
 
 
 userCanRole : Role -> User -> Bool

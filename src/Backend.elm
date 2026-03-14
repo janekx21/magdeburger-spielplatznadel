@@ -198,7 +198,7 @@ updateFromFrontend _ clientId msg model =
             model.connections |> IdSet.remove clientId |> IdSet.toList |> List.map .id
 
         connectedUser =
-            model.connections |> IdSet.get clientId |> Maybe.andThen (\c -> c.userId) |> Maybe.andThen (\userId -> model.users |> IdSet.get userId)
+            model.connections |> IdSet.get clientId |> Maybe.andThen .userId |> Maybe.andThen (\userId -> model.users |> IdSet.get userId)
 
         ifCanRole : Role -> ( Model, Cmd a ) -> ( Model, Cmd a )
         ifCanRole role modelCmd =
@@ -227,14 +227,8 @@ updateFromFrontend _ clientId msg model =
                     allAwards model.playgrounds
                         |> List.filter (\a -> a.id == itemId)
                         |> List.head
-
-                maybeUser =
-                    model.connections
-                        |> IdSet.get clientId
-                        |> Maybe.andThen .userId
-                        |> Maybe.andThen (\userId -> model.users |> IdSet.get userId)
             in
-            case ( maybeAward, maybeUser ) of
+            case ( maybeAward, connectedUser ) of
                 ( Just award, Just user ) ->
                     let
                         newUser =
@@ -275,6 +269,27 @@ updateFromFrontend _ clientId msg model =
                     model.connections |> IdSet.insert { id = clientId, userId = Just user.id }
             in
             ( { model | users = users, connections = connected }, Cmd.batch [ Lamdera.sendToFrontend clientId <| UserUpdated user, Lamdera.sendToFrontend clientId UserLoggedIn ] )
+
+        UpdateUser userPatch ->
+            case connectedUser of
+                Just oldUser ->
+                    let
+                        -- Here the stuff that a user can update about himself is written down
+                        newUser =
+                            { oldUser | showWelcomeScreen = userPatch.showWelcomeScreen }
+
+                        userConnections =
+                            model.connections
+                                |> IdSet.toList
+                                |> List.filter (\{ userId } -> userId == Just newUser.id)
+                                |> List.map .id
+                    in
+                    ( { model | users = model.users |> IdSet.insert newUser }
+                    , broadcastTo userConnections <| UserUpdated newUser
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
 
         UploadImage _ ->
             ( model, Cmd.none )

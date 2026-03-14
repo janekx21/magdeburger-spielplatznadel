@@ -294,6 +294,18 @@ update msg model =
         UnfocusPlayground ->
             ( { model | focusedPlayground = Nothing }, Cmd.none )
 
+        CloseWelcomeScreen ->
+            case model.user of
+                Just oldUser ->
+                    let
+                        newUser =
+                            { oldUser | showWelcomeScreen = False }
+                    in
+                    ( { model | user = Just newUser }, Lamdera.sendToBackend <| UpdateUser newUser )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
 
 
 -- Use this to inject some additional state
@@ -690,8 +702,8 @@ viewMyUser maybeUser =
     defaultLayout <|
         column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
             [ column [ spacing 24, width fill ]
-                [ viewTitle "Dein Account"
-                , viewParapraph "Hier findest du alles wichtige über deinen Account. Über den QR-Code kannst du deinen Account mit einem weiteren Gerät teilen."
+                [ viewTitle "DEIN ACCOUNT"
+                , viewParapraph "Dein Fortschritt wird automatisch gespeichert, ganz ohne Konto oder Passwort. Du erhältst eine persönliche ID, die du als Link oder QR-Code teilen kannst, damit auch Partner oder Freunde auf denselben Fortschritt zugreifen können. Speichere den \"Teilen\" Link, um deinen Fortschritt jederzeit wiederzufinden."
                 ]
             , case maybeUser of
                 Nothing ->
@@ -703,7 +715,7 @@ viewMyUser maybeUser =
                             Env.absoluteBaseUrl ++ "login/" ++ user.id
 
                         userQRCode =
-                            el [ width fill, height fill ] <|
+                            el [ width fill, height fill, Border.width 4, Border.color accent, Border.rounded 8, Background.color white ] <|
                                 qrCodeView <|
                                     url
 
@@ -713,26 +725,29 @@ viewMyUser maybeUser =
                         --             (QRCode.toImage >> Image.toPngUrl)
                         --         |> Result.withDefault ""
                     in
-                    column [ width fill, height fill, spacing 16 ]
-                        [ userQRCode
-                        , el
-                            [ Background.color secondaryDark
-                            , padding 8
-                            , Border.rounded 16
-                            , Font.color white
-                            , Font.size 14
-                            , centerX
+                    column [ width fill, height fill, spacing 32 ]
+                        [ column [ Font.color secondaryDark, spacing 16, width fill ]
+                            [ el [ centerX ] <| text "Deine ID lautet:"
+                            , el
+                                [ Background.color secondaryDark
+                                , padding 8
+                                , Border.rounded 16
+                                , Font.color white
+                                , Font.size 14
+                                , centerX
+                                ]
+                              <|
+                                text user.id
+                            , el [ centerX ] <| text "Pass gut auf sie auf."
                             ]
-                          <|
-                            text user.id
-                        , el [ height fill ] <| none
-
-                        -- , shareButton
-                        --     { files = [] -- qrBase64Png
-                        --     , text = "Du kannst diesen Link nutzen um dich bei der Magdeburger Spielplatznadel anzumelden."
-                        --     , title = "Anmeldung"
-                        --     , url = url
-                        --     }
+                        , shareButton
+                            { files = [] -- qrBase64Png
+                            , text = "Du kannst diesen Link nutzen um dich bei der Magdeburger Spielplatznadel anzumelden."
+                            , title = "Anmeldung"
+                            , url = url
+                            }
+                        , userQRCode
+                        , el [ height (px 80) ] <| none
                         ]
             ]
 
@@ -838,113 +853,150 @@ viewMainRoute model =
             Maybe.map .location model.currentGeoLocation
 
         seperator =
-            el [ height (px 64), width fill ] <| el [ Font.color secondary, centerX, centerY ] <| text "..."
+            el [ height (px 64), width fill ] <|
+                el [ Font.color secondary, centerX, centerY ] <|
+                    column [ spacing 8 ]
+                        [ el [ centerX ] <| iconSized Icons.circle 8
+                        , el [ centerX ] <| iconSized Icons.circle 8
+                        , el [ centerX ] <| iconSized Icons.circle 8
+                        ]
+
+        viewWelcome =
+            column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+                [ el [ height fill, width fill, below <| belowWelcome ] <|
+                    column [ centerX, centerY ]
+                        [ image [ centerX ]
+                            { src = "/assets/images/logo/logo192x192.png", description = "" }
+                        , el [ Font.size 24, Font.color accent, itim, Font.bold ] <| text "Magdeburger Spielplatznadel"
+                        ]
+                ]
+
+        belowWelcome =
+            column
+                [ spacing 24
+                , width fill
+                , Background.color white
+                , inFront <|
+                    el [ centerX, moveUp 84, Font.color secondary ] <|
+                        column [ spacing 8 ]
+                            [ el [ centerX ] <| iconSized Icons.circle 8
+                            , el [ centerX ] <| iconSized Icons.circle 12
+                            , el [ centerX ] <| iconSized Icons.circle 16
+                            ]
+                ]
+                [ viewParapraph "Entdecke und sammle alle Spielplätze Magdeburgs. Stempel dich durch die Stadt und finde den perfekten Spielplatz für dein Kind."
+                , cuteButton CloseWelcomeScreen <| text "Los Gehts!"
+                , el [ height (px 80) ] <| none
+                ]
+
+        accountLink =
+            link
+                []
+                { url = "/my-user"
+                , label = iconSized Icons.account_circle 32
+                }
     in
     defaultLayout <|
-        el
-            [ width fill
-            , height fill
-            , inFront <|
-                el [ alignBottom, alignRight, padding 32 ] <|
-                    buttonAwards
-            ]
-        <|
-            column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
-                [ column [ spacing 24, width fill ]
-                    [ viewTitle "Magdeburger Spielplatznadel"
-                    , viewParapraph "Fangt jetzt an Stempel zu sammeln und schaut wie viel ihr bekommen könnt."
-                    ]
-                , mainMap
-                    (Maybe.map .location model.currentGeoLocation)
-                    (List.map
-                        (\p ->
-                            playgroundMarker
-                                (case model.focusedPlayground of
-                                    Nothing ->
-                                        True
+        if model.user |> Maybe.map .showWelcomeScreen |> Maybe.withDefault False then
+            viewWelcome
 
-                                    Just focused ->
-                                        p == focused
-                                )
-                                p
-                        )
-                        playgrounds
-                    )
-                    model.snapGeoLocation
-                    model.mapCamera
-                , column
-                    [ spacing 16, width fill ]
-                    (case model.focusedPlayground of
-                        Nothing ->
-                            playgrounds |> List.map (playgroundItem location)
-
-                        Just playground ->
-                            playgroundItemExpanded location playground
-                                :: seperator
-                                :: (playgrounds |> List.filter (\p -> p /= playground) |> List.map (playgroundItem location))
-                    )
-                , column
-                    [ spacing 16, width fill ]
-                    [ link
-                        [ padding 16
-                        , Background.color secondaryDark
-                        , Border.rounded 16
-                        , Font.color white
-                        , width fill
-                        , Font.center
-                        ]
-                        { url = "/my-user"
-                        , label =
-                            text "Dein Account"
-                        }
-                    , ifUserCanRole model.user
-                        Moderator
-                        (link
-                            [ padding 16
-                            , Background.color secondaryDark
-                            , Border.rounded 16
-                            , Font.color white
-                            , width fill
-                            , Font.center
+        else
+            el
+                [ width fill
+                , height fill
+                , inFront <|
+                    el [ alignBottom, alignRight, padding 32 ] <|
+                        buttonAwards
+                , inFront <|
+                    el [ padding 12, width fill ] <|
+                        row [ width fill, Font.color secondaryDark, spacing 8, padding 12, Background.color white, Border.rounded 32 ]
+                            [ el [ itim, Font.size 24, Font.bold ] <| text "ERKUNDEN"
+                            , el [ alignRight ] <| iconSized Icons.notifications 24
+                            , el [ alignRight ] <| accountLink
                             ]
-                            { url = "/admin"
-                            , label =
-                                text "Admin Seite"
-                            }
+                ]
+            <|
+                column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+                    [ el [ height (px 32) ] <| none
+                    , mainMap
+                        (Maybe.map .location model.currentGeoLocation)
+                        (List.map
+                            (\p ->
+                                playgroundMarker
+                                    (case model.focusedPlayground of
+                                        Nothing ->
+                                            True
+
+                                        Just focused ->
+                                            p == focused
+                                    )
+                                    p
+                            )
+                            playgrounds
+                        )
+                        model.snapGeoLocation
+                        model.mapCamera
+                    , column
+                        [ spacing 16, width fill ]
+                        (case model.focusedPlayground of
+                            Nothing ->
+                                playgrounds |> List.map (playgroundItem location)
+
+                            Just playground ->
+                                playgroundItemExpanded location playground
+                                    :: seperator
+                                    :: (playgrounds |> List.filter (\p -> p /= playground) |> List.map (playgroundItem location))
+                        )
+                    , column
+                        [ spacing 16, width fill ]
+                        [ ifUserCanRole model.user
+                            Moderator
+                            (link
+                                [ padding 16
+                                , Background.color secondaryDark
+                                , Border.rounded 16
+                                , Font.color white
+                                , width fill
+                                , Font.center
+                                ]
+                                { url = "/admin"
+                                , label =
+                                    text "Admin Seite"
+                                }
+                            )
+                            none
+                        ]
+                    , ifUserCanRole model.user
+                        Admin
+                        (column
+                            [ spacing 16, width fill ]
+                            [ el [ Font.bold ] <| text "debuggin menu"
+                            , column [ spacing 8, width fill ]
+                                (allAwards model.playgrounds
+                                    |> List.map
+                                        (\{ id, title } ->
+                                            link [ width fill ]
+                                                { url = showRoute <| NewAwardRoute id
+                                                , label =
+                                                    el
+                                                        [ padding 16
+                                                        , Background.color secondaryDark
+                                                        , Border.rounded 16
+                                                        , Font.color white
+                                                        , width fill
+                                                        ]
+                                                    <|
+                                                        text <|
+                                                            "Stempel "
+                                                                ++ title
+                                                                ++ " eintragen"
+                                                }
+                                        )
+                                )
+                            ]
                         )
                         none
                     ]
-                , ifUserCanRole model.user
-                    Admin
-                    (column
-                        [ spacing 16, width fill ]
-                        [ el [ Font.bold ] <| text "debuggin menu"
-                        , column [ spacing 8, width fill ]
-                            (allAwards model.playgrounds
-                                |> List.map
-                                    (\{ id, title } ->
-                                        link [ width fill ]
-                                            { url = showRoute <| NewAwardRoute id
-                                            , label =
-                                                el
-                                                    [ padding 16
-                                                    , Background.color secondaryDark
-                                                    , Border.rounded 16
-                                                    , Font.color white
-                                                    , width fill
-                                                    ]
-                                                <|
-                                                    text <|
-                                                        "Stempel "
-                                                            ++ title
-                                                            ++ " eintragen"
-                                            }
-                                    )
-                            )
-                        ]
-                    )
-                    none
-                ]
 
 
 viewAwardsRoute : Model -> Html.Html msg
@@ -1303,7 +1355,7 @@ playgroundMarker active playground =
 
 viewTitle label =
     paragraph [ spacing 16 ]
-        [ el [ Font.bold, Font.size 32, Font.color secondaryDark ] <| text label
+        [ el [ Font.bold, Font.size 32, Font.color secondaryDark, itim ] <| text label
         ]
 
 
