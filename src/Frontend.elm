@@ -28,6 +28,7 @@ import Material.Icons.Round as Icons
 import Material.Icons.Types exposing (Icon)
 import QRCode
 import Random
+import Task
 import Types exposing (..)
 import UUID exposing (Seeds)
 import Url
@@ -250,7 +251,12 @@ update msg model =
 
         ImageSelected target file ->
             ( model
-            , imageUploadCmd target file
+            , File.toBytes file |> Task.perform (\b -> ImageBytes target b file)
+            )
+
+        ImageBytes target bytes file ->
+            ( model
+            , Lamdera.sendToBackend <| UploadImage bytes (File.name file) (File.mime file)
             )
 
         ImageUploaded target result ->

@@ -189,6 +189,7 @@ type FrontendMsg
     | Share ShareData
     | ImageRequested ImageTarget
     | ImageSelected ImageTarget File
+    | ImageBytes ImageTarget Bytes File
     | ImageUploaded ImageTarget (Result Http.Error ImgurImage)
     | ImageDeleted (Result Http.Error ())
     | Tick Time.Posix
@@ -254,7 +255,7 @@ type ToBackend
     | Collect Guid
     | SetConnectedUser UserId
     | UpdateUser User
-    | UploadImage Bytes
+    | UploadImage Bytes String String
     | AddDeleteHash Link DeleteHash
 
 
@@ -262,6 +263,7 @@ type BackendMsg
     = NoOpBackendMsg
     | ClientConnected SessionId ClientId
     | ClientDisconnected ClientId
+    | ImageUploaded2 (Result Http.Error ())
 
 
 

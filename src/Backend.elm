@@ -3,7 +3,10 @@ module Backend exposing (..)
 import Common exposing (..)
 import Dict
 import Env
+import GarageUpload
+import Http
 import IdSet
+import Json.Decode as D
 import Lamdera exposing (ClientId, SessionId)
 import Types exposing (..)
 
@@ -176,6 +179,14 @@ update msg model =
         ClientDisconnected clientId ->
             ( { model | connections = model.connections |> IdSet.remove clientId }, Cmd.none )
 
+        ImageUploaded2 result ->
+            let
+                _ =
+                    Debug.log "ImageUploaded result" result
+                addr = "http://md-spielplatznadel.web.garage.localhost:3902/Untitled.jpg"
+            in
+            ( model, Cmd.none )
+
 
 
 -- ImageUploaded result ->
@@ -291,8 +302,21 @@ updateFromFrontend _ clientId msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        UploadImage _ ->
-            ( model, Cmd.none )
+        UploadImage bytes name mime ->
+            let
+                config =
+                    { endpoint = "http://localhost:3900"
+                    , host = "localhost"
+                    , bucket = "md-spielplatznadel"
+                    , region = "garage"
+                    , accessKey = "GK5c09e755b7cea71a1b72c46a"
+                    , secretKey = "9fd3a0195e5be1ec526cca03d4ace9db8ba830ebf839871e8db5c67e091ec461"
+                    }
+
+                upload =
+                    GarageUpload.uploadFile config name mime bytes ImageUploaded2
+            in
+            ( model, upload )
 
         AddDeleteHash link hash ->
             let
@@ -303,7 +327,7 @@ updateFromFrontend _ clientId msg model =
 
 
 
--- imageUploadCmd file
+-- imageUploadCmd
 
 
 broadcastTo : List ClientId -> ToFrontend -> Cmd msg
