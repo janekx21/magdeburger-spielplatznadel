@@ -4,9 +4,7 @@ import Common exposing (..)
 import Dict
 import Env
 import GarageUpload
-import Http
 import IdSet
-import Json.Decode as D
 import Lamdera exposing (ClientId, SessionId, broadcast)
 import Types exposing (..)
 
@@ -197,15 +195,6 @@ update msg model =
                     ( model, Cmd.none )
 
 
-
--- ImageUploaded result ->
---     let
---         _ =
---             Debug.log "image upload result" result
---     in
---     ( model, Cmd.none )
-
-
 initConnection : ClientId -> Connection
 initConnection clientId =
     { id = clientId, userId = Nothing }
@@ -332,34 +321,9 @@ updateFromFrontend _ clientId msg model =
                     GarageUpload.uploadFile config name mime bytes (\r -> ImageUploaded target (Result.map (\() -> { url = url }) r))
             in
             ( model, upload )
-
-        AddDeleteHash link hash ->
-            let
-                hashes =
-                    model.deleteHashes |> Dict.insert link hash
-            in
-            ( { model | deleteHashes = hashes }, Lamdera.broadcast (DeleteHashUpdated hashes) )
-
-
-
--- imageUploadCmd
+                |> ifCanRole Moderator
 
 
 broadcastTo : List ClientId -> ToFrontend -> Cmd msg
 broadcastTo clientIds msg =
     clientIds |> List.map (\id -> Lamdera.sendToFrontend id msg) |> Cmd.batch
-
-
-
--- imageUploadCmd file =
---     Http.post
---         { url = "https://api.imgur.com/3/image"
---         , expect = Http.expectJson ImageUploaded (D.value |> D.map Debug.toString)
---         , body =
---             Http.multipartBody
---                 [ Http.stringPart "type" "image"
---                 , Http.stringPart "title" "some title"
---                 , Http.stringPart "description" "some description"
---                 , Http.bytesPart "image" "image/png" file
---                 ]
---         }

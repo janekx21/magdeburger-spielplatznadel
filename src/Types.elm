@@ -259,9 +259,15 @@ type ToBackend
     | RemovePlayground Playground
     | Collect Guid
     | SetConnectedUser UserId
-    | UpdateUser User
+    | UpdateUser UserPatch
     | UploadImage ImageTarget Bytes String String
-    | AddDeleteHash Link DeleteHash
+
+
+{-| Includes everything a user can change about himself
+-}
+type alias UserPatch =
+    { showWelcomeScreen : Bool
+    }
 
 
 type BackendMsg

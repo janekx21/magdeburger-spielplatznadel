@@ -19,7 +19,6 @@ import Html
 import Html.Attributes
 import Html.Events
 import Html.Keyed
-import Http
 import IdSet
 import Json.Decode as D
 import Json.Encode as E
@@ -154,23 +153,11 @@ update msg model =
 
         RemovePlaygroundImage playground index ->
             let
-                maybeHash =
-                    getItemInList playground.images index
-                        |> Maybe.andThen (\img -> Dict.get img.url model.deleteHashes)
+                -- TODO delete image from bucket
+                ( updateModel, updateCmd ) =
+                    updatePlayground model { playground | images = removeInList playground.images index }
             in
-            case maybeHash of
-                Just hash ->
-                    let
-                        delteCmd =
-                            imageDeleteCmd hash
-
-                        ( updateModel, updateCmd ) =
-                            updatePlayground model { playground | images = removeInList playground.images index }
-                    in
-                    ( updateModel, Cmd.batch [ updateCmd, delteCmd ] )
-
-                Nothing ->
-                    ( model, Cmd.none )
+            ( updateModel, Cmd.batch [ updateCmd ] )
 
         AddPlayground ->
             let
@@ -290,10 +277,13 @@ update msg model =
             case model.user of
                 Just oldUser ->
                     let
+                        oldUserPatch =
+                            { showWelcomeScreen = oldUser.showWelcomeScreen }
+
                         newUser =
-                            { oldUser | showWelcomeScreen = False }
+                            { oldUserPatch | showWelcomeScreen = False }
                     in
-                    ( { model | user = Just newUser }, Lamdera.sendToBackend <| UpdateUser newUser )
+                    ( { model | user = Just { oldUser | showWelcomeScreen = newUser.showWelcomeScreen } }, Lamdera.sendToBackend <| UpdateUser newUser )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -335,135 +325,6 @@ newRoute url model =
 
         -- |> Animator.go (Animator.millis 5000) (parseUrl url)
     }
-
-
-
--- imageUploadCmd : ImageTarget -> File.File -> Cmd FrontendMsg
--- imageUploadCmd target file =
---     Http.request
---         { method = "POST"
---         , headers =
---             [ Http.header "Authorization" "Client-ID d39e7a51841a2f1"
---             ]
---         , url = "https://api.imgur.com/3/image"
---         , expect = Http.expectJson (ImageUploaded target) imgurImageDecoder
---         , timeout = Nothing
---         , tracker = Nothing
---         , body =
---             Http.multipartBody
---                 [ Http.stringPart "title" "simple image number one"
---                 , Http.stringPart "description" "simple description number two"
---                 , Http.filePart "image" file
---                 , Http.stringPart "type" "file"
---                 ]
---         }
-{--
--- TODO example image
-
-{
-    "id": "kZbTHiA",
-    "deletehash": "VNqYAk7BQvBJ3wU",
-    "account_id": null,
-    "account_url": null,
-    "ad_type": null,
-    "ad_url": null,
-    "title": "simple image",
-    "description": "simple description",
-    "name": "",
-    "type": "image/png",
-    "width": 200,
-    "height": 200,
-    "size": 4040,
-    "views": 0,
-    "section": null,
-    "vote": null,
-    "bandwidth": 0,
-    "animated": false,
-    "favorite": false,
-    "in_gallery": false,
-    "in_most_viral": false,
-    "has_sound": false,
-    "is_ad": false,
-    "nsfw": null,
-    "link": "https://i.imgur.com/kZbTHiA.png",
-    "tags": [],
-    "datetime": 1735225135,
-    "mp4": "",
-    "hls": ""
-
-}
-
-
-{
-  "id": "zebTRlF",
-  "deletehash": "IfpCBzk9ek51Rh1",
-  "account_id": null,
-  "account_url": null,
-  "ad_type": null,
-  "ad_url": null,
-  "title": "simple image number one",
-  "description": "simple description number two",
-  "name": "",
-  "type": "image/png",
-  "width": 1024,
-  "height": 1024,
-  "size": 118452,
-  "views": 0,
-  "section": null,
-  "vote": null,
-  "bandwidth": 0,
-  "animated": false,
-  "favorite": false,
-  "in_gallery": false,
-  "in_most_viral": false,
-  "has_sound": false,
-  "is_ad": false,
-  "nsfw": null,
-  "link": "https://i.imgur.com/zebTRlF.png",
-  "tags": [],
-  "datetime": 1735338374,
-  "mp4": "",
-  "hls": ""
-}
-
-https://i.imgur.com/NdwP8Oj.jpeg
-Ich hab mir den delete hash durch die lappen gehen lassen :<
-
-
---}
-
-
-imgurImageDecoder : D.Decoder ImgurImage
-imgurImageDecoder =
-    D.field "data"
-        (D.map3 ImgurImage
-            (D.field "id" <| D.string)
-            (D.field "link" <| D.string)
-            (D.field "deletehash" <| D.string)
-        )
-
-
-imageDeleteCmd : DeleteHash -> Cmd FrontendMsg
-imageDeleteCmd hash =
-    Http.request
-        { method = "DELETE"
-        , headers =
-            [ Http.header "Authorization" "Client-ID d39e7a51841a2f1"
-            ]
-        , url = "https://api.imgur.com/3/image/" ++ hash
-        , expect = Http.expectWhatever ImageDeleted
-        , timeout = Nothing
-        , tracker = Nothing
-        , body = Http.emptyBody
-        }
-
-
-
--- case target of
---     PlaygroundImageTarget playground ->
---         update
---             (UpdatePlayground { playground | images = playground.images ++ [ { url = dataUrl, description = "" } ] })
---             model
 
 
 initPlayground : Seeds -> ( Playground, Seeds )
@@ -516,19 +377,6 @@ updateFromBackend msg model =
 
 
 
--- Not needed anymore i think
--- ImageUploaded target result ->
---     case result of
---         Ok imgurImage ->
---             case target of
---                 PlaygroundImageTarget playground ->
---                     let
---                         ( updateModel, updateCmd ) =
---                             updatePlayground model { playground | images = playground.images ++ [ { url = imgurImage.link } ] }
---                     in
---                     ( updateModel, Cmd.batch [ updateCmd, Lamdera.sendToBackend (AddDeleteHash imgurImage.link imgurImage.deleteHash) ] )
---         Err err ->
---             ( model, Cmd.none )
 -- View
 
 
