@@ -190,6 +190,24 @@ update msg model =
                     in
                     ( { model | playgrounds = IdSet.insert newPlayground model.playgrounds }, broadcast <| PlaygroundUploaded newPlayground )
 
+                ( AwardImageTarget playground award, Ok img ) ->
+                    let
+                        awards =
+                            playground.awards
+                                |> List.map
+                                    (\a ->
+                                        if a.id == award.id then
+                                            { award | image = img }
+
+                                        else
+                                            a
+                                    )
+
+                        newPlayground =
+                            { playground | awards = awards }
+                    in
+                    ( { model | playgrounds = IdSet.insert newPlayground model.playgrounds }, broadcast <| PlaygroundUploaded newPlayground )
+
                 ( _, Err e ) ->
                     -- TODO handle e
                     ( model, Cmd.none )

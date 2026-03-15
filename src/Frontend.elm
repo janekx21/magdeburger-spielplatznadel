@@ -1058,6 +1058,7 @@ viewPlaygroundAdminRoute model playground =
                     ]
                 , cuteInput "Titel" award.title <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | title = v } }
                 , cuteInput "Bild URL" award.image.url <| \v -> UpdatePlayground { playground | awards = playground.awards |> updateListItemViaId { award | image = { awardImage | url = v } } }
+                , cuteButton (ImageRequested <| AwardImageTarget playground award) <| text "Bild hochladen"
                 ]
 
         addAwardButton =
@@ -1372,7 +1373,7 @@ imagePreview image =
                 , Background.color secondary
                 , width (px 120)
                 , height (px 120)
-                , Background.image image.url
+                , Background.uncropped image.url
                 ]
                 { label = none, onPress = Just <| OpenModal <| ImageModal image }
     in

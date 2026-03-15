@@ -232,6 +232,7 @@ type alias ShareData =
 
 type ImageTarget
     = PlaygroundImageTarget Playground
+    | AwardImageTarget Playground Award
 
 
 
