@@ -256,22 +256,8 @@ update msg model =
 
         ImageBytes target bytes file ->
             ( model
-            , Lamdera.sendToBackend <| UploadImage bytes (File.name file) (File.mime file)
+            , Lamdera.sendToBackend <| UploadImage target bytes (File.name file) (File.mime file)
             )
-
-        ImageUploaded target result ->
-            case result of
-                Ok imgurImage ->
-                    case target of
-                        PlaygroundImageTarget playground ->
-                            let
-                                ( updateModel, updateCmd ) =
-                                    updatePlayground model { playground | images = playground.images ++ [ { url = imgurImage.link } ] }
-                            in
-                            ( updateModel, Cmd.batch [ updateCmd, Lamdera.sendToBackend (AddDeleteHash imgurImage.link imgurImage.deleteHash) ] )
-
-                Err err ->
-                    ( model, Cmd.none )
 
         ImageDeleted result ->
             let
@@ -351,28 +337,26 @@ newRoute url model =
     }
 
 
-imageUploadCmd : ImageTarget -> File.File -> Cmd FrontendMsg
-imageUploadCmd target file =
-    Http.request
-        { method = "POST"
-        , headers =
-            [ Http.header "Authorization" "Client-ID d39e7a51841a2f1"
-            ]
-        , url = "https://api.imgur.com/3/image"
-        , expect = Http.expectJson (ImageUploaded target) imgurImageDecoder
-        , timeout = Nothing
-        , tracker = Nothing
-        , body =
-            Http.multipartBody
-                [ Http.stringPart "title" "simple image number one"
-                , Http.stringPart "description" "simple description number two"
-                , Http.filePart "image" file
-                , Http.stringPart "type" "file"
-                ]
-        }
 
-
-
+-- imageUploadCmd : ImageTarget -> File.File -> Cmd FrontendMsg
+-- imageUploadCmd target file =
+--     Http.request
+--         { method = "POST"
+--         , headers =
+--             [ Http.header "Authorization" "Client-ID d39e7a51841a2f1"
+--             ]
+--         , url = "https://api.imgur.com/3/image"
+--         , expect = Http.expectJson (ImageUploaded target) imgurImageDecoder
+--         , timeout = Nothing
+--         , tracker = Nothing
+--         , body =
+--             Http.multipartBody
+--                 [ Http.stringPart "title" "simple image number one"
+--                 , Http.stringPart "description" "simple description number two"
+--                 , Http.filePart "image" file
+--                 , Http.stringPart "type" "file"
+--                 ]
+--         }
 {--
 -- TODO example image
 
@@ -532,6 +516,19 @@ updateFromBackend msg model =
 
 
 
+-- Not needed anymore i think
+-- ImageUploaded target result ->
+--     case result of
+--         Ok imgurImage ->
+--             case target of
+--                 PlaygroundImageTarget playground ->
+--                     let
+--                         ( updateModel, updateCmd ) =
+--                             updatePlayground model { playground | images = playground.images ++ [ { url = imgurImage.link } ] }
+--                     in
+--                     ( updateModel, Cmd.batch [ updateCmd, Lamdera.sendToBackend (AddDeleteHash imgurImage.link imgurImage.deleteHash) ] )
+--         Err err ->
+--             ( model, Cmd.none )
 -- View
 
 

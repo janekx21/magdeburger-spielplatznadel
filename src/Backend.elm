@@ -7,7 +7,7 @@ import GarageUpload
 import Http
 import IdSet
 import Json.Decode as D
-import Lamdera exposing (ClientId, SessionId)
+import Lamdera exposing (ClientId, SessionId, broadcast)
 import Types exposing (..)
 
 
@@ -179,13 +179,22 @@ update msg model =
         ClientDisconnected clientId ->
             ( { model | connections = model.connections |> IdSet.remove clientId }, Cmd.none )
 
-        ImageUploaded2 result ->
+        ImageUploaded target result ->
             let
                 _ =
                     Debug.log "ImageUploaded result" result
-                addr = "http://md-spielplatznadel.web.garage.localhost:3902/Untitled.jpg"
             in
-            ( model, Cmd.none )
+            case ( target, result ) of
+                ( PlaygroundImageTarget oldPlayground, Ok img ) ->
+                    let
+                        newPlayground =
+                            { oldPlayground | images = oldPlayground.images ++ [ img ] }
+                    in
+                    ( { model | playgrounds = IdSet.insert newPlayground model.playgrounds }, broadcast <| PlaygroundUploaded newPlayground )
+
+                ( _, Err e ) ->
+                    -- TODO handle e
+                    ( model, Cmd.none )
 
 
 
@@ -302,7 +311,7 @@ updateFromFrontend _ clientId msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        UploadImage bytes name mime ->
+        UploadImage target bytes name mime ->
             let
                 config =
                     { endpoint = "http://localhost:3900"
@@ -313,8 +322,14 @@ updateFromFrontend _ clientId msg model =
                     , secretKey = "9fd3a0195e5be1ec526cca03d4ace9db8ba830ebf839871e8db5c67e091ec461"
                     }
 
+                webHost =
+                    "localhost:3902"
+
+                url =
+                    "http://" ++ config.bucket ++ ".web." ++ config.region ++ "." ++ webHost ++ "/" ++ name
+
                 upload =
-                    GarageUpload.uploadFile config name mime bytes ImageUploaded2
+                    GarageUpload.uploadFile config name mime bytes (\r -> ImageUploaded target (Result.map (\() -> { url = url }) r))
             in
             ( model, upload )
 

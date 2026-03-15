@@ -51,8 +51,12 @@ type Route
     | LoginRoute Guid
 
 
+type alias PlaygroundId =
+    Guid
+
+
 type alias Playground =
-    { id : Guid
+    { id : PlaygroundId
     , title : String
     , description : String
     , location : Location
@@ -187,11 +191,12 @@ type FrontendMsg
     | LoginWithId UserId
     | SetSeed UUID.Seeds
     | Share ShareData
-    | ImageRequested ImageTarget
-    | ImageSelected ImageTarget File
-    | ImageBytes ImageTarget Bytes File
-    | ImageUploaded ImageTarget (Result Http.Error ImgurImage)
+      -- Image uploading in steps
+    | ImageRequested ImageTarget -- Request that an image should get uploaded
+    | ImageSelected ImageTarget File -- It got selected, lets convert it
+    | ImageBytes ImageTarget Bytes File -- Here are the bytes, lets upload that toBackend
     | ImageDeleted (Result Http.Error ())
+      --
     | Tick Time.Posix
     | SnapToLocation
     | CameraMoved Camera
@@ -255,7 +260,7 @@ type ToBackend
     | Collect Guid
     | SetConnectedUser UserId
     | UpdateUser User
-    | UploadImage Bytes String String
+    | UploadImage ImageTarget Bytes String String
     | AddDeleteHash Link DeleteHash
 
 
@@ -263,7 +268,7 @@ type BackendMsg
     = NoOpBackendMsg
     | ClientConnected SessionId ClientId
     | ClientDisconnected ClientId
-    | ImageUploaded2 (Result Http.Error ())
+    | ImageUploaded ImageTarget (Result Http.Error Img)
 
 
 
@@ -278,3 +283,7 @@ type ToFrontend
     | UserUpdated User
     | UserLoggedIn
     | DeleteHashUpdated (Dict Link DeleteHash)
+
+
+
+-- | ImageUploaded ImageTarget (Result Http.Error ImgurImage)
