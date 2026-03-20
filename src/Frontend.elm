@@ -465,6 +465,7 @@ view model =
     }
 
 
+viewRoute : Route -> Model -> Html.Html FrontendMsg
 viewRoute route model =
     case model.modal of
         Just (ImageModal image) ->
@@ -473,6 +474,19 @@ viewRoute route model =
         Just (AreYouSureModal label msg) ->
             viewAreYouSureModal label msg
 
+        Just NotificationModal ->
+            defaultLayout <|
+                case model.user of
+                    Just user ->
+                        column []
+                            [ column [] (user.notifications |> List.map (\n -> text n.title))
+                            , Input.button [] { label = text "Close", onPress = Just <| CloseModal }
+                            ]
+
+                    Nothing ->
+                        text "you are not logged in"
+
+        -- TODO
         Nothing ->
             case route of
                 MainRoute ->
@@ -762,7 +776,7 @@ viewMainRoute model =
                     el [ padding 12, width fill ] <|
                         row [ width fill, Font.color secondaryDark, spacing 8, padding 12, Background.color white, Border.rounded 32 ]
                             [ el [ itim, Font.size 24, Font.bold ] <| text "ERKUNDEN"
-                            , el [ alignRight ] <| iconSized Icons.notifications 24
+                            , Input.button [ alignRight ] { label = iconSized Icons.notifications 24, onPress = Just <| OpenModal <| NotificationModal }
                             , el [ alignRight ] <| accountLink
                             ]
                 ]

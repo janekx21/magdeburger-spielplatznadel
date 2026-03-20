@@ -177,20 +177,16 @@ update msg model =
         ClientDisconnected clientId ->
             ( { model | connections = model.connections |> IdSet.remove clientId }, Cmd.none )
 
-        ImageUploaded target result ->
-            let
-                _ =
-                    Debug.log "ImageUploaded result" result
-            in
-            case ( target, result ) of
-                ( PlaygroundImageTarget oldPlayground, Ok img ) ->
+        ImageUploaded uid target result ->
+            case ( target, result, model.users |> IdSet.get uid ) of
+                ( PlaygroundImageTarget oldPlayground, Ok img, _ ) ->
                     let
                         newPlayground =
                             { oldPlayground | images = oldPlayground.images ++ [ img ] }
                     in
                     ( { model | playgrounds = IdSet.insert newPlayground model.playgrounds }, broadcast <| PlaygroundUploaded newPlayground )
 
-                ( AwardImageTarget playground award, Ok img ) ->
+                ( AwardImageTarget playground award, Ok img, _ ) ->
                     let
                         awards =
                             playground.awards
@@ -208,8 +204,22 @@ update msg model =
                     in
                     ( { model | playgrounds = IdSet.insert newPlayground model.playgrounds }, broadcast <| PlaygroundUploaded newPlayground )
 
-                ( _, Err e ) ->
+                ( _, Err e, Just user ) ->
+                    let
+                        userConnections =
+                            model.connections
+                                |> IdSet.toList
+                                |> List.filter (\{ userId } -> userId == Just user.id)
+                                |> List.map .id
+
+                        n : Notification
+                        n =
+                            { source = "Backend", title = "Image Upload Failed", message = Debug.toString e }
+                    in
                     -- TODO handle e
+                    ( model, broadcastTo userConnections <| UserUpdated { user | notifications = n :: user.notifications } )
+
+                _ ->
                     ( model, Cmd.none )
 
 
@@ -319,27 +329,32 @@ updateFromFrontend _ clientId msg model =
                     ( model, Cmd.none )
 
         UploadImage target bytes name mime ->
-            let
-                config =
-                    { endpoint = "http://localhost:3900"
-                    , host = "localhost"
-                    , bucket = "md-spielplatznadel"
-                    , region = "garage"
-                    , accessKey = "GK5c09e755b7cea71a1b72c46a"
-                    , secretKey = "9fd3a0195e5be1ec526cca03d4ace9db8ba830ebf839871e8db5c67e091ec461"
-                    }
+            case connectedUser of
+                Just userId ->
+                    let
+                        config =
+                            { endpoint = "http://localhost:3900"
+                            , host = "localhost"
+                            , bucket = "md-spielplatznadel"
+                            , region = "garage"
+                            , accessKey = "GK5c09e755b7cea71a1b72c46a"
+                            , secretKey = "9fd3a0195e5be1ec526cca03d4ace9db8ba830ebf839871e8db5c67e091ec461"
+                            }
 
-                webHost =
-                    "localhost:3902"
+                        webHost =
+                            "localhost:3902"
 
-                url =
-                    "http://" ++ config.bucket ++ ".web." ++ config.region ++ "." ++ webHost ++ "/" ++ name
+                        url =
+                            "http://" ++ config.bucket ++ ".web." ++ config.region ++ "." ++ webHost ++ "/" ++ name
 
-                upload =
-                    GarageUpload.uploadFile config name mime bytes (\r -> ImageUploaded target (Result.map (\() -> { url = url }) r))
-            in
-            ( model, upload )
-                |> ifCanRole Moderator
+                        upload =
+                            GarageUpload.uploadFile config name mime bytes (\r -> ImageUploaded userId.id target (Result.map (\() -> { url = url }) r))
+                    in
+                    ( model, upload )
+                        |> ifCanRole Moderator
+
+                Nothing ->
+                    ( model, Cmd.none )
 
 
 broadcastTo : List ClientId -> ToFrontend -> Cmd msg

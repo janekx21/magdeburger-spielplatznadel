@@ -205,9 +205,30 @@ buildHttpTask config key contentType body posix =
             ]
         , url = config.endpoint ++ "/" ++ config.bucket ++ "/" ++ key
         , body = Http.bytesBody contentType body
-        , resolver = Http.bytesResolver (\_ -> Ok ())
+        , resolver = whateverResolver
         , timeout = Nothing
         }
+
+
+whateverResolver : Http.Resolver Http.Error ()
+whateverResolver =
+    Http.bytesResolver <|
+        \response ->
+            case response of
+                Http.BadUrl_ url ->
+                    Err (Http.BadUrl url)
+
+                Http.Timeout_ ->
+                    Err Http.Timeout
+
+                Http.NetworkError_ ->
+                    Err Http.NetworkError
+
+                Http.BadStatus_ metadata _ ->
+                    Err (Http.BadStatus metadata.statusCode)
+
+                Http.GoodStatus_ _ _ ->
+                    Ok ()
 
 
 

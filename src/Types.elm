@@ -38,6 +38,7 @@ type alias FrontendModel =
 type Modal
     = ImageModal Img
     | AreYouSureModal String FrontendMsg
+    | NotificationModal -- TODO to route
 
 
 type Route
@@ -159,6 +160,7 @@ type alias User =
     , awards : IdSet Award
     , showWelcomeScreen : Bool
     , role : Role
+    , notifications : List Notification
     }
 
 
@@ -166,6 +168,15 @@ type Role
     = RegularUser
     | Moderator
     | Admin
+
+
+type alias Notification =
+    { source : String
+    , title : String
+    , message : String
+
+    -- TODO time
+    }
 
 
 
@@ -275,7 +286,7 @@ type BackendMsg
     = NoOpBackendMsg
     | ClientConnected SessionId ClientId
     | ClientDisconnected ClientId
-    | ImageUploaded ImageTarget (Result Http.Error Img)
+    | ImageUploaded UserId ImageTarget (Result Http.Error Img)
 
 
 
