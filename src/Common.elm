@@ -75,7 +75,30 @@ defaultMarkerIcon =
 
 initEmptyUser : UserId -> User
 initEmptyUser id =
-    { id = id, awards = IdSet.empty, role = RegularUser, showWelcomeScreen = True, notifications = [] }
+    { id = id
+    , awards = IdSet.empty
+    , role = RegularUser
+    , showWelcomeScreen = True
+    , notifications =
+        [ { source = "Spielplatznadel", title = "Willkommen", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        , { source = "Spielplatznadel", title = "Msg 1", message = "Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.Danke, dass du jetzt auch hier bist. Wir freuen uns über deine Teilnahme an diesem Projekt.", read = False }
+        ]
+    }
 
 
 userCanRole : Role -> User -> Bool

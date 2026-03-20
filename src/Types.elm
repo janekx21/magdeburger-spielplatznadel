@@ -38,7 +38,6 @@ type alias FrontendModel =
 type Modal
     = ImageModal Img
     | AreYouSureModal String FrontendMsg
-    | NotificationModal -- TODO to route
 
 
 type Route
@@ -50,6 +49,7 @@ type Route
     | PlaygroundAdminRoute Guid
     | MyUserRoute
     | LoginRoute Guid
+    | NotificationRoute
 
 
 type alias PlaygroundId =
@@ -174,6 +174,7 @@ type alias Notification =
     { source : String
     , title : String
     , message : String
+    , read : Bool
 
     -- TODO time
     }
@@ -214,6 +215,7 @@ type FrontendMsg
     | MarkerClicked Marker
     | UnfocusPlayground
     | CloseWelcomeScreen
+    | ReadNotification Int
 
 
 type alias Link =
@@ -273,6 +275,7 @@ type ToBackend
     | SetConnectedUser UserId
     | UpdateUser UserPatch
     | UploadImage ImageTarget Bytes String String
+    | NotificationRead Int
 
 
 {-| Includes everything a user can change about himself

@@ -4,8 +4,10 @@ import Common exposing (..)
 import Dict
 import Env
 import GarageUpload
+import Html.Attributes exposing (target)
 import IdSet
 import Lamdera exposing (ClientId, SessionId, broadcast)
+import List.Extra
 import Types exposing (..)
 
 
@@ -214,10 +216,31 @@ update msg model =
 
                         n : Notification
                         n =
-                            { source = "Backend", title = "Image Upload Failed", message = Debug.toString e }
+                            { source = "Bild Server", title = "Upload Fehler", message = message, read = False }
+
+                        message =
+                            case target of
+                                AwardImageTarget playground award ->
+                                    "Bild Upload am Stempel \""
+                                        ++ award.title
+                                        ++ "\" vom Spielplatz \""
+                                        ++ playground.title
+                                        ++ "\" fehlgeschlagen mit Fehler \""
+                                        ++ Debug.toString e
+                                        ++ "\". Sag am besten einem Admin bescheid."
+
+                                PlaygroundImageTarget playground ->
+                                    "Bild Upload am Spielplatz \""
+                                        ++ playground.title
+                                        ++ "\" fehlgeschlagen mit Fehler \""
+                                        ++ Debug.toString e
+                                        ++ "\". Sag am besten einem Admin bescheid."
+
+                        newUser =
+                            { user | notifications = n :: user.notifications }
                     in
                     -- TODO handle e
-                    ( model, broadcastTo userConnections <| UserUpdated { user | notifications = n :: user.notifications } )
+                    ( { model | users = model.users |> IdSet.insert newUser }, broadcastTo userConnections <| UserUpdated newUser )
 
                 _ ->
                     ( model, Cmd.none )
@@ -352,6 +375,24 @@ updateFromFrontend _ clientId msg model =
                     in
                     ( model, upload )
                         |> ifCanRole Moderator
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        NotificationRead index ->
+            case connectedUser of
+                Just user ->
+                    let
+                        newUser =
+                            { user | notifications = user.notifications |> List.Extra.updateAt index (\n -> { n | read = True }) }
+
+                        userConnections =
+                            model.connections
+                                |> IdSet.toList
+                                |> List.filter (\{ userId } -> userId == Just newUser.id)
+                                |> List.map .id
+                    in
+                    ( { model | users = model.users |> IdSet.insert newUser }, broadcastTo userConnections (UserUpdated newUser) )
 
                 Nothing ->
                     ( model, Cmd.none )

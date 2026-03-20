@@ -9,7 +9,7 @@ import Dict
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border exposing (rounded)
-import Element.Events
+import Element.Events exposing (onClick)
 import Element.Font as Font
 import Element.Input as Input
 import Env
@@ -23,6 +23,7 @@ import IdSet
 import Json.Decode as D
 import Json.Encode as E
 import Lamdera
+import List.Extra
 import Material.Icons.Round as Icons
 import Material.Icons.Types exposing (Icon)
 import QRCode
@@ -168,7 +169,7 @@ update msg model =
                 | playgrounds = model.playgrounds |> IdSet.insert playground
                 , seeds = seeds
               }
-            , Nav.pushUrl model.key <| "/admin/playground/" ++ playground.id
+            , Nav.pushUrl model.key <| routeToPath <| PlaygroundAdminRoute playground.id
             )
 
         RemovePlaygroundLocal playground ->
@@ -224,7 +225,7 @@ update msg model =
 
         LoginWithId userId ->
             ( model
-            , Cmd.batch [ Nav.replaceUrl model.key "/", Lamdera.sendToBackend <| SetConnectedUser userId, saveStorage userId ]
+            , Cmd.batch [ Nav.replaceUrl model.key (routeToPath MainRoute), Lamdera.sendToBackend <| SetConnectedUser userId, saveStorage userId ]
             )
 
         SetSeed seeds ->
@@ -284,6 +285,18 @@ update msg model =
                             { oldUserPatch | showWelcomeScreen = False }
                     in
                     ( { model | user = Just { oldUser | showWelcomeScreen = newUser.showWelcomeScreen } }, Lamdera.sendToBackend <| UpdateUser newUser )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        ReadNotification index ->
+            case model.user of
+                Just user ->
+                    ( { model
+                        | user = Just { user | notifications = user.notifications |> List.Extra.updateAt index (\n -> { n | read = True }) }
+                      }
+                    , Lamdera.sendToBackend <| NotificationRead index
+                    )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -474,18 +487,6 @@ viewRoute route model =
         Just (AreYouSureModal label msg) ->
             viewAreYouSureModal label msg
 
-        Just NotificationModal ->
-            defaultLayout <|
-                case model.user of
-                    Just user ->
-                        column []
-                            [ column [] (user.notifications |> List.map (\n -> text n.title))
-                            , Input.button [] { label = text "Close", onPress = Just <| CloseModal }
-                            ]
-
-                    Nothing ->
-                        text "you are not logged in"
-
         -- TODO
         Nothing ->
             case route of
@@ -540,6 +541,9 @@ viewRoute route model =
                 LoginRoute guid ->
                     viewLogin model.user guid
 
+                NotificationRoute ->
+                    viewNotificationRoute model
+
 
 viewLogin maybeUser userId =
     defaultLayout <|
@@ -561,6 +565,89 @@ viewLogin maybeUser userId =
                             ]
                         ]
             ]
+
+
+viewNotificationRoute model =
+    let
+        viewNotification i n =
+            let
+                read =
+                    n.read
+            in
+            column
+                ([ Background.color secondary
+                 , padding 24
+                 , Border.rounded 16
+                 , width fill
+                 , spacing 18
+                 , onClick <| ReadNotification i
+                 , inFront <|
+                    el
+                        [ Font.color secondaryDark
+                        , alignRight
+                        , moveRight 4
+                        , moveUp 18
+                        , Background.color secondary
+                        , padding 12
+                        , Border.rounded 16
+                        , Font.size 16
+                        ]
+                    <|
+                        text ("Von " ++ n.source)
+                 ]
+                    ++ (if read then
+                            [ Border.color secondary, Border.width 4 ]
+
+                        else
+                            [ Border.color secondaryDark, Border.width 4 ]
+                       )
+                )
+                [ row [ width fill, spacing 8 ]
+                    [ el [ Font.color secondaryDark, alignTop ] <|
+                        icon
+                            (if read then
+                                Icons.notifications_none
+
+                             else
+                                Icons.notifications
+                            )
+                    , paragraph
+                        (Font.color secondaryDark
+                            :: (if read then
+                                    []
+
+                                else
+                                    [ Font.bold ]
+                               )
+                        )
+                        [ text n.title ]
+                    ]
+                , paragraph [ Font.color secondaryDark ] [ text n.message ]
+                ]
+    in
+    defaultLayout <|
+        case model.user of
+            Just user ->
+                let
+                    unReadCount =
+                        user.notifications |> List.Extra.count (\n -> not n.read)
+
+                    hasUnread =
+                        unReadCount /= 0
+                in
+                column [ width fill, height fill, spacing 32, padding 22, scrollbarY ]
+                    [ viewTitle "MITTEILUNGEN"
+                    , viewParapraph <|
+                        if hasUnread then
+                            "Ungelesene Benachrichtigungen: " ++ String.fromInt unReadCount
+
+                        else
+                            "Keine ungelesenen Benachrichtigungen"
+                    , column [ width fill, spacing 32 ] (user.notifications |> List.indexedMap viewNotification)
+                    ]
+
+            Nothing ->
+                text "you are not logged in"
 
 
 viewMyUser maybeUser =
@@ -757,9 +844,15 @@ viewMainRoute model =
         accountLink =
             link
                 []
-                { url = "/my-user"
+                { url = routeToPath MyUserRoute
                 , label = iconSized Icons.account_circle 32
                 }
+
+        unReadCount =
+            model.user |> Maybe.map (.notifications >> List.Extra.count (\n -> not n.read)) |> Maybe.withDefault 0
+
+        hasUnread =
+            unReadCount /= 0
     in
     defaultLayout <|
         if model.user |> Maybe.map .showWelcomeScreen |> Maybe.withDefault False then
@@ -776,7 +869,18 @@ viewMainRoute model =
                     el [ padding 12, width fill ] <|
                         row [ width fill, Font.color secondaryDark, spacing 8, padding 12, Background.color white, Border.rounded 32 ]
                             [ el [ itim, Font.size 24, Font.bold ] <| text "ERKUNDEN"
-                            , Input.button [ alignRight ] { label = iconSized Icons.notifications 24, onPress = Just <| OpenModal <| NotificationModal }
+                            , link [ alignRight ]
+                                { label =
+                                    iconSized
+                                        (if hasUnread then
+                                            Icons.notifications
+
+                                         else
+                                            Icons.notifications_none
+                                        )
+                                        24
+                                , url = routeToPath NotificationRoute
+                                }
                             , el [ alignRight ] <| accountLink
                             ]
                 ]
@@ -824,7 +928,7 @@ viewMainRoute model =
                                 , width fill
                                 , Font.center
                                 ]
-                                { url = "/admin"
+                                { url = routeToPath AdminRoute
                                 , label =
                                     text "Admin Seite"
                                 }
@@ -841,7 +945,7 @@ viewMainRoute model =
                                     |> List.map
                                         (\{ id, title } ->
                                             link [ width fill ]
-                                                { url = showRoute <| NewAwardRoute id
+                                                { url = routeToPath <| NewAwardRoute id
                                                 , label =
                                                     el
                                                         [ padding 16
@@ -926,7 +1030,7 @@ viewNewAwardRoute model award =
                         [ viewTitle "Glückwunsch!"
                         , viewParapraph <| "Du hast gerade den " ++ award.title ++ " Stempel gefunden. Trag ihn schnell in dein Stempelheft ein."
                         , replacingLink [ centerX, padding 16 ]
-                            { url = "/award"
+                            { url = routeToPath AwardsRoute
                             , label =
                                 el
                                     [ padding 16
@@ -1544,7 +1648,7 @@ playgroundItem location playground =
                 , textTruncated playground.title
                 , location |> Maybe.map (viewDistance playground.location) |> Maybe.withDefault none
                 ]
-        , url = showRoute <| PlaygroundRoute playground.id
+        , url = routeToPath <| PlaygroundRoute playground.id
         }
 
 
@@ -1573,7 +1677,7 @@ playgroundItemExpanded location playground =
                   else
                     row [ spacing 8 ] (playground.awards |> List.map (\_ -> emptyEl [ rounded 99, Background.color secondaryDark, width (px 16), height (px 16) ]))
                 ]
-        , url = showRoute <| PlaygroundRoute playground.id
+        , url = routeToPath <| PlaygroundRoute playground.id
         }
 
 
@@ -1839,9 +1943,19 @@ routeParser =
         , UP.map MyUserRoute (UP.s "my-user")
         , UP.map LoginRoute (UP.s "login" </> UP.string)
         , UP.map PlaygroundAdminRoute (UP.s "admin" </> UP.s "playground" </> UP.string)
+        , UP.map NotificationRoute (UP.s "notification")
         ]
 
 
+{-| The path part of the route with leading slash
+-}
+routeToPath : Route -> String
+routeToPath r =
+    "/" ++ showRoute r
+
+
+{-| The path part of the route without leading slash
+-}
 showRoute : Route -> String
 showRoute route =
     case route of
@@ -1868,6 +1982,9 @@ showRoute route =
 
         LoginRoute guid ->
             "login/" ++ guid
+
+        NotificationRoute ->
+            "notification/"
 
 
 wrapInAreYouSure label msg =
